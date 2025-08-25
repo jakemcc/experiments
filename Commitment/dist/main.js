@@ -7,14 +7,14 @@ function isSameDay(a, b) {
         a.getMonth() === b.getMonth() &&
         a.getDate() === b.getDate();
 }
-function scheduleLock(firstSetAt, buttons) {
-    const disableButtons = () => buttons.forEach(r => r.disabled = true);
+function scheduleLock(firstSetAt, inputs) {
+    const disableInputs = () => inputs.forEach(r => r.disabled = true);
     const remaining = LOCK_DURATION_MS - (Date.now() - firstSetAt);
     if (remaining <= 0) {
-        disableButtons();
+        disableInputs();
     }
     else {
-        setTimeout(disableButtons, remaining);
+        setTimeout(disableInputs, remaining);
     }
 }
 export function setup() {
@@ -34,10 +34,10 @@ export function setup() {
     const savedCommit = localStorage.getItem(COMMIT_KEY);
     if (savedCommit !== null) {
         if (savedCommit === 'true') {
-            commitYes.classList.add('selected');
+            commitYes.checked = true;
         }
         else {
-            commitNo.classList.add('selected');
+            commitNo.checked = true;
         }
         const firstSetAt = parseInt(localStorage.getItem(COMMIT_TIME_KEY) || '0', 10);
         scheduleLock(firstSetAt, [commitYes, commitNo]);
@@ -45,70 +45,58 @@ export function setup() {
     const savedHeld = localStorage.getItem(HELD_KEY);
     if (savedHeld !== null) {
         if (savedHeld === 'true') {
-            heldYes.classList.add('selected');
+            heldYes.checked = true;
         }
         else {
-            heldNo.classList.add('selected');
+            heldNo.checked = true;
         }
     }
-    const handleCommitClick = (ev) => {
+    const handleCommitChange = (ev) => {
         const target = ev.target;
-        if (target === commitYes) {
-            const nowSelected = !commitYes.classList.contains('selected');
-            commitYes.classList.toggle('selected', nowSelected);
-            if (nowSelected)
-                commitNo.classList.remove('selected');
+        if (target === commitYes && commitYes.checked) {
+            commitNo.checked = false;
         }
-        else if (target === commitNo) {
-            const nowSelected = !commitNo.classList.contains('selected');
-            commitNo.classList.toggle('selected', nowSelected);
-            if (nowSelected)
-                commitYes.classList.remove('selected');
+        else if (target === commitNo && commitNo.checked) {
+            commitYes.checked = false;
         }
-        if (commitYes.classList.contains('selected')) {
+        if (commitYes.checked) {
             localStorage.setItem(COMMIT_KEY, 'true');
         }
-        else if (commitNo.classList.contains('selected')) {
+        else if (commitNo.checked) {
             localStorage.setItem(COMMIT_KEY, 'false');
         }
         else {
             localStorage.removeItem(COMMIT_KEY);
         }
         let firstSetAt = parseInt(localStorage.getItem(COMMIT_TIME_KEY) || '0', 10);
-        if (!firstSetAt && (commitYes.classList.contains('selected') || commitNo.classList.contains('selected'))) {
+        if (!firstSetAt && (commitYes.checked || commitNo.checked)) {
             firstSetAt = Date.now();
             localStorage.setItem(COMMIT_TIME_KEY, String(firstSetAt));
             scheduleLock(firstSetAt, [commitYes, commitNo]);
         }
     };
-    commitYes.addEventListener('click', handleCommitClick);
-    commitNo.addEventListener('click', handleCommitClick);
-    const handleHeldClick = (ev) => {
+    commitYes.addEventListener('change', handleCommitChange);
+    commitNo.addEventListener('change', handleCommitChange);
+    const handleHeldChange = (ev) => {
         const target = ev.target;
-        if (target === heldYes) {
-            const nowSelected = !heldYes.classList.contains('selected');
-            heldYes.classList.toggle('selected', nowSelected);
-            if (nowSelected)
-                heldNo.classList.remove('selected');
+        if (target === heldYes && heldYes.checked) {
+            heldNo.checked = false;
         }
-        else if (target === heldNo) {
-            const nowSelected = !heldNo.classList.contains('selected');
-            heldNo.classList.toggle('selected', nowSelected);
-            if (nowSelected)
-                heldYes.classList.remove('selected');
+        else if (target === heldNo && heldNo.checked) {
+            heldYes.checked = false;
         }
-        if (heldYes.classList.contains('selected')) {
+        if (heldYes.checked) {
             localStorage.setItem(HELD_KEY, 'true');
         }
-        else if (heldNo.classList.contains('selected')) {
+        else if (heldNo.checked) {
             localStorage.setItem(HELD_KEY, 'false');
         }
         else {
             localStorage.removeItem(HELD_KEY);
         }
     };
-    heldYes.addEventListener('click', handleHeldClick);
-    heldNo.addEventListener('click', handleHeldClick);
+    heldYes.addEventListener('change', handleHeldChange);
+    heldNo.addEventListener('change', handleHeldChange);
 }
 document.addEventListener('DOMContentLoaded', setup);
 export { isSameDay }; // for testing
