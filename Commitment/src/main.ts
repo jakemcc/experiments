@@ -47,22 +47,50 @@ export function setup() {
     return;
   }
 
+  const recordSuccess = (firstSetAt: number) => {
+    const successes = JSON.parse(localStorage.getItem(HELD_SUCCESS_KEY) || '[]');
+    const dateStr = new Date(firstSetAt).toISOString().split('T')[0];
+    if (!successes.includes(dateStr)) {
+      successes.push(dateStr);
+      localStorage.setItem(HELD_SUCCESS_KEY, JSON.stringify(successes));
+    }
+  };
+
+  const resetSelections = () => {
+    commitYes.checked = false;
+    commitNo.checked = false;
+    heldYes.checked = false;
+    heldNo.checked = false;
+    commitYes.disabled = false;
+    commitNo.disabled = false;
+    localStorage.removeItem(COMMIT_KEY);
+    localStorage.removeItem(COMMIT_TIME_KEY);
+    localStorage.removeItem(HELD_KEY);
+  };
+
+  let awaitingHeld = false;
+
   // daily reset for commit
   const firstSetRaw = localStorage.getItem(COMMIT_TIME_KEY);
   if (firstSetRaw) {
     const firstSetAt = parseInt(firstSetRaw, 10);
-    if (!isSameDay(new Date(firstSetAt), new Date())) {
-      if (localStorage.getItem(HELD_KEY) === 'true') {
-        const successes = JSON.parse(localStorage.getItem(HELD_SUCCESS_KEY) || '[]');
-        const dateStr = new Date(firstSetAt).toISOString().split('T')[0];
-        if (!successes.includes(dateStr)) {
-          successes.push(dateStr);
-          localStorage.setItem(HELD_SUCCESS_KEY, JSON.stringify(successes));
+    const firstDate = new Date(firstSetAt);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - firstDate.getTime()) / (24 * 60 * 60 * 1000));
+    if (diffDays === 1) {
+      const held = localStorage.getItem(HELD_KEY);
+      if (held === null) {
+        awaitingHeld = true;
+        alert('Please record whether you held your commitment yesterday.');
+      } else {
+        if (held === 'true') {
+          recordSuccess(firstSetAt);
         }
+        resetSelections();
       }
-      localStorage.removeItem(COMMIT_KEY);
-      localStorage.removeItem(COMMIT_TIME_KEY);
-      localStorage.removeItem(HELD_KEY);
+    } else if (diffDays > 1) {
+      alert('It has been a while since your last visit. Please open the app more often.');
+      resetSelections();
     }
   }
 
@@ -132,6 +160,15 @@ export function setup() {
       localStorage.setItem(HELD_KEY, 'false');
     } else {
       localStorage.removeItem(HELD_KEY);
+    }
+
+    if (awaitingHeld) {
+      const firstSetAt = parseInt(localStorage.getItem(COMMIT_TIME_KEY) || '0', 10);
+      if (heldYes.checked) {
+        recordSuccess(firstSetAt);
+      }
+      resetSelections();
+      awaitingHeld = false;
     }
   };
 
