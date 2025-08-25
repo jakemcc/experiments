@@ -12,7 +12,8 @@ describe('Commitment UI', () => {
         <span>Held it:</span>
         <label><input type="checkbox" name="held" id="held-yes" value="yes"> Yes</label>
         <label><input type="checkbox" name="held" id="held-no" value="no"> No</label>
-      </div>`;
+      </div>
+      <div id="success-visual"></div>`;
     localStorage.clear();
     jest.useFakeTimers();
   });
@@ -79,5 +80,25 @@ describe('Commitment UI', () => {
     heldNo.dispatchEvent(new Event('change'));
     expect(heldYes.checked).toBe(false);
     expect(heldNo.checked).toBe(true);
+  });
+
+  it('records held days on reset', () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    localStorage.setItem('commitFirstSetAt', String(yesterday.getTime()));
+    localStorage.setItem('heldToggle', 'true');
+    setup();
+    const successes = JSON.parse(localStorage.getItem('heldSuccessDates') || '[]');
+    expect(successes).toContain(yesterday.toISOString().split('T')[0]);
+    expect(localStorage.getItem('heldToggle')).toBeNull();
+  });
+
+  it('renders success visualization', () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    localStorage.setItem('heldSuccessDates', JSON.stringify([todayStr]));
+    setup();
+    const squares = document.querySelectorAll('#success-visual .day');
+    expect(squares.length).toBe(7);
+    expect(squares[squares.length - 1].classList.contains('success')).toBe(true);
   });
 });
