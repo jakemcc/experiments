@@ -43,6 +43,19 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
+    #success-visual {
+      display: flex;
+      gap: 4px;
+      margin-top: 1rem;
+    }
+    .day {
+      width: 20px;
+      height: 20px;
+      border: 1px solid #ccc;
+    }
+    .day.success {
+      background-color: green;
+    }
   </style>
 </head>
 <body>
@@ -61,6 +74,7 @@
     <input type="checkbox" class="option" name="held" id="held-no" value="no">
     <label for="held-no" class="choice no">No</label>
   </div>
+  <div id="success-visual"></div>
   <script type="module" src="./dist/main.js"></script>
 </body>
 </html>
