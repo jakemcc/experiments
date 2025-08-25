@@ -25,6 +25,10 @@ export function setup() {
   const heldYes = document.getElementById('held-yes') as HTMLInputElement;
   const heldNo = document.getElementById('held-no') as HTMLInputElement;
 
+  if (!commitYes || !commitNo || !heldYes || !heldNo) {
+    return;
+  }
+
   // daily reset for commit
   const firstSetRaw = localStorage.getItem(COMMIT_TIME_KEY);
   if (firstSetRaw) {
@@ -103,6 +107,10 @@ export function setup() {
   heldNo.addEventListener('change', handleHeldChange);
 }
 
-document.addEventListener('DOMContentLoaded', setup);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setup);
+} else {
+  setup();
+}
 
 export { isSameDay }; // for testing
