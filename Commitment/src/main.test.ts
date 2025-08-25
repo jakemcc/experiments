@@ -5,13 +5,13 @@ describe('Commitment UI', () => {
     document.body.innerHTML = `
       <div>
         <span>Commit:</span>
-        <button id="commit-yes" class="choice yes" type="button">Yes</button>
-        <button id="commit-no" class="choice no" type="button">No</button>
+        <label><input type="checkbox" name="commit" id="commit-yes" value="yes"> Yes</label>
+        <label><input type="checkbox" name="commit" id="commit-no" value="no"> No</label>
       </div>
       <div>
         <span>Held it:</span>
-        <button id="held-yes" class="choice yes" type="button">Yes</button>
-        <button id="held-no" class="choice no" type="button">No</button>
+        <label><input type="checkbox" name="held" id="held-yes" value="yes"> Yes</label>
+        <label><input type="checkbox" name="held" id="held-no" value="no"> No</label>
       </div>`;
     localStorage.clear();
     jest.useFakeTimers();
@@ -26,51 +26,58 @@ describe('Commitment UI', () => {
     localStorage.setItem('commitFirstSetAt', String(Date.now()));
     localStorage.setItem('heldToggle', 'true');
     setup();
-    const commitYes = document.getElementById('commit-yes') as HTMLButtonElement;
-    const heldYes = document.getElementById('held-yes') as HTMLButtonElement;
-    expect(commitYes.classList.contains('selected')).toBe(true);
-    expect(heldYes.classList.contains('selected')).toBe(true);
+    const commitYes = document.getElementById('commit-yes') as HTMLInputElement;
+    const heldYes = document.getElementById('held-yes') as HTMLInputElement;
+    expect(commitYes.checked).toBe(true);
+    expect(heldYes.checked).toBe(true);
   });
 
   it('locks commit toggle after 30 seconds', () => {
     setup();
-    const commitYes = document.getElementById('commit-yes') as HTMLButtonElement;
-    commitYes.click();
+    const commitYes = document.getElementById('commit-yes') as HTMLInputElement;
+    commitYes.checked = true;
+    commitYes.dispatchEvent(new Event('change'));
     jest.advanceTimersByTime(30000);
-    const commitNo = document.getElementById('commit-no') as HTMLButtonElement;
+    const commitNo = document.getElementById('commit-no') as HTMLInputElement;
     expect(commitYes.disabled).toBe(true);
     expect(commitNo.disabled).toBe(true);
   });
 
   it('allows clearing a selection without selecting the other', () => {
     setup();
-    const commitYes = document.getElementById('commit-yes') as HTMLButtonElement;
-    const commitNo = document.getElementById('commit-no') as HTMLButtonElement;
-    commitYes.click();
-    expect(commitYes.classList.contains('selected')).toBe(true);
-    expect(commitNo.classList.contains('selected')).toBe(false);
-    commitYes.click();
-    expect(commitYes.classList.contains('selected')).toBe(false);
-    expect(commitNo.classList.contains('selected')).toBe(false);
+    const commitYes = document.getElementById('commit-yes') as HTMLInputElement;
+    const commitNo = document.getElementById('commit-no') as HTMLInputElement;
+    commitYes.checked = true;
+    commitYes.dispatchEvent(new Event('change'));
+    expect(commitYes.checked).toBe(true);
+    expect(commitNo.checked).toBe(false);
+    commitYes.checked = false;
+    commitYes.dispatchEvent(new Event('change'));
+    expect(commitYes.checked).toBe(false);
+    expect(commitNo.checked).toBe(false);
   });
 
   it('does not allow both commit options to be selected', () => {
     setup();
-    const commitYes = document.getElementById('commit-yes') as HTMLButtonElement;
-    const commitNo = document.getElementById('commit-no') as HTMLButtonElement;
-    commitYes.click();
-    commitNo.click();
-    expect(commitYes.classList.contains('selected')).toBe(false);
-    expect(commitNo.classList.contains('selected')).toBe(true);
+    const commitYes = document.getElementById('commit-yes') as HTMLInputElement;
+    const commitNo = document.getElementById('commit-no') as HTMLInputElement;
+    commitYes.checked = true;
+    commitYes.dispatchEvent(new Event('change'));
+    commitNo.checked = true;
+    commitNo.dispatchEvent(new Event('change'));
+    expect(commitYes.checked).toBe(false);
+    expect(commitNo.checked).toBe(true);
   });
 
   it('does not allow both held options to be selected', () => {
     setup();
-    const heldYes = document.getElementById('held-yes') as HTMLButtonElement;
-    const heldNo = document.getElementById('held-no') as HTMLButtonElement;
-    heldYes.click();
-    heldNo.click();
-    expect(heldYes.classList.contains('selected')).toBe(false);
-    expect(heldNo.classList.contains('selected')).toBe(true);
+    const heldYes = document.getElementById('held-yes') as HTMLInputElement;
+    const heldNo = document.getElementById('held-no') as HTMLInputElement;
+    heldYes.checked = true;
+    heldYes.dispatchEvent(new Event('change'));
+    heldNo.checked = true;
+    heldNo.dispatchEvent(new Event('change'));
+    expect(heldYes.checked).toBe(false);
+    expect(heldNo.checked).toBe(true);
   });
 });

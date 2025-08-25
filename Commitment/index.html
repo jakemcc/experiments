@@ -4,33 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Commitment</title>
-  <style>
-    body { font-family: sans-serif; }
-    .prompt { margin-bottom: 1em; }
-    .choice {
-      border: 2px solid;
-      background: transparent;
-      padding: 0.5em 1em;
-      margin-left: 0.5em;
-      cursor: pointer;
-    }
-    .choice.yes { border-color: green; color: green; }
-    .choice.no { border-color: red; color: red; }
-    .choice.selected.yes { background-color: green; color: white; }
-    .choice.selected.no { background-color: red; color: white; }
-  </style>
 </head>
 <body>
   <h1>Today?</h1>
-  <div class="prompt">
+  <div>
     <span>Commit:</span>
-    <button id="commit-yes" class="choice yes" type="button">Yes</button>
-    <button id="commit-no" class="choice no" type="button">No</button>
+    <label><input type="checkbox" name="commit" id="commit-yes" value="yes"> Yes</label>
+    <label><input type="checkbox" name="commit" id="commit-no" value="no"> No</label>
   </div>
-  <div class="prompt">
+  <div>
     <span>Held it:</span>
-    <button id="held-yes" class="choice yes" type="button">Yes</button>
-    <button id="held-no" class="choice no" type="button">No</button>
+    <label><input type="checkbox" name="held" id="held-yes" value="yes"> Yes</label>
+    <label><input type="checkbox" name="held" id="held-no" value="no"> No</label>
   </div>
   <script type="module" src="./dist/main.js"></script>
 </body>
