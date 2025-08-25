@@ -22,6 +22,9 @@ export function setup() {
     const commitNo = document.getElementById('commit-no');
     const heldYes = document.getElementById('held-yes');
     const heldNo = document.getElementById('held-no');
+    if (!commitYes || !commitNo || !heldYes || !heldNo) {
+        return;
+    }
     // daily reset for commit
     const firstSetRaw = localStorage.getItem(COMMIT_TIME_KEY);
     if (firstSetRaw) {
@@ -98,5 +101,10 @@ export function setup() {
     heldYes.addEventListener('change', handleHeldChange);
     heldNo.addEventListener('change', handleHeldChange);
 }
-document.addEventListener('DOMContentLoaded', setup);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setup);
+}
+else {
+    setup();
+}
 export { isSameDay }; // for testing
