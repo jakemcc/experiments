@@ -56,4 +56,28 @@ describe('Commitment UI', () => {
     expect(commitYes.checked).toBe(false);
     expect(commitNo.checked).toBe(false);
   });
+
+  it('does not allow both commit options to be selected', () => {
+    setup();
+    const commitYes = document.getElementById('commit-yes') as HTMLInputElement;
+    const commitNo = document.getElementById('commit-no') as HTMLInputElement;
+    commitYes.checked = true;
+    commitYes.dispatchEvent(new Event('change'));
+    commitNo.checked = true;
+    commitNo.dispatchEvent(new Event('change'));
+    expect(commitYes.checked).toBe(false);
+    expect(commitNo.checked).toBe(true);
+  });
+
+  it('does not allow both held options to be selected', () => {
+    setup();
+    const heldYes = document.getElementById('held-yes') as HTMLInputElement;
+    const heldNo = document.getElementById('held-no') as HTMLInputElement;
+    heldYes.checked = true;
+    heldYes.dispatchEvent(new Event('change'));
+    heldNo.checked = true;
+    heldNo.dispatchEvent(new Event('change'));
+    expect(heldYes.checked).toBe(false);
+    expect(heldNo.checked).toBe(true);
+  });
 });

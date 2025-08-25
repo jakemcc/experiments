@@ -55,10 +55,11 @@ export function setup() {
     }
   }
 
-  const handleCommitChange = () => {
-    if (commitYes.checked) {
+  const handleCommitChange = (ev: Event) => {
+    const target = ev.target as HTMLInputElement;
+    if (target === commitYes && commitYes.checked) {
       commitNo.checked = false;
-    } else if (commitNo.checked) {
+    } else if (target === commitNo && commitNo.checked) {
       commitYes.checked = false;
     }
 
@@ -81,10 +82,11 @@ export function setup() {
   commitYes.addEventListener('change', handleCommitChange);
   commitNo.addEventListener('change', handleCommitChange);
 
-  const handleHeldChange = () => {
-    if (heldYes.checked) {
+  const handleHeldChange = (ev: Event) => {
+    const target = ev.target as HTMLInputElement;
+    if (target === heldYes && heldYes.checked) {
       heldNo.checked = false;
-    } else if (heldNo.checked) {
+    } else if (target === heldNo && heldNo.checked) {
       heldYes.checked = false;
     }
 
