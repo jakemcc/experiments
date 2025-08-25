@@ -7,12 +7,14 @@
 <body>
   <h1>Today?</h1>
   <div>
-    <label>Commit: <input type="checkbox" id="commit-toggle"></label>
-    <span id="commit-label">No</span>
+    <span>Commit:</span>
+    <label><input type="radio" name="commit" id="commit-yes" value="yes"> Yes</label>
+    <label><input type="radio" name="commit" id="commit-no" value="no" checked> No</label>
   </div>
   <div>
-    <label>Held it: <input type="checkbox" id="held-toggle"></label>
-    <span id="held-label">No</span>
+    <span>Held it:</span>
+    <label><input type="radio" name="held" id="held-yes" value="yes"> Yes</label>
+    <label><input type="radio" name="held" id="held-no" value="no" checked> No</label>
   </div>
   <script type="module" src="./dist/main.js"></script>
 </body>

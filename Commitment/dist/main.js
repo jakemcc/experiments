@@ -7,25 +7,21 @@ function isSameDay(a, b) {
         a.getMonth() === b.getMonth() &&
         a.getDate() === b.getDate();
 }
-function updateLabel(toggle, label) {
-    label.textContent = toggle.checked ? 'Yes' : 'No';
-}
-function scheduleLock(firstSetAt, toggle) {
+function scheduleLock(firstSetAt, radios) {
+    const disableRadios = () => radios.forEach(r => r.disabled = true);
     const remaining = LOCK_DURATION_MS - (Date.now() - firstSetAt);
     if (remaining <= 0) {
-        toggle.disabled = true;
+        disableRadios();
     }
     else {
-        setTimeout(() => {
-            toggle.disabled = true;
-        }, remaining);
+        setTimeout(disableRadios, remaining);
     }
 }
 export function setup() {
-    const commitToggle = document.getElementById('commit-toggle');
-    const commitLabel = document.getElementById('commit-label');
-    const heldToggle = document.getElementById('held-toggle');
-    const heldLabel = document.getElementById('held-label');
+    const commitYes = document.getElementById('commit-yes');
+    const commitNo = document.getElementById('commit-no');
+    const heldYes = document.getElementById('held-yes');
+    const heldNo = document.getElementById('held-no');
     // daily reset for commit
     const firstSetRaw = localStorage.getItem(COMMIT_TIME_KEY);
     if (firstSetRaw) {
@@ -37,29 +33,43 @@ export function setup() {
     }
     const savedCommit = localStorage.getItem(COMMIT_KEY);
     if (savedCommit !== null) {
-        commitToggle.checked = savedCommit === 'true';
-        updateLabel(commitToggle, commitLabel);
+        if (savedCommit === 'true') {
+            commitYes.checked = true;
+        }
+        else {
+            commitNo.checked = true;
+        }
         const firstSetAt = parseInt(localStorage.getItem(COMMIT_TIME_KEY) || '0', 10);
-        scheduleLock(firstSetAt, commitToggle);
+        scheduleLock(firstSetAt, [commitYes, commitNo]);
     }
     const savedHeld = localStorage.getItem(HELD_KEY);
     if (savedHeld !== null) {
-        heldToggle.checked = savedHeld === 'true';
-        updateLabel(heldToggle, heldLabel);
-    }
-    commitToggle.addEventListener('change', () => {
-        updateLabel(commitToggle, commitLabel);
-        localStorage.setItem(COMMIT_KEY, String(commitToggle.checked));
-        let firstSetAt = parseInt(localStorage.getItem(COMMIT_TIME_KEY) || '0', 10);
-        if (!firstSetAt) {
-            firstSetAt = Date.now();
-            localStorage.setItem(COMMIT_TIME_KEY, String(firstSetAt));
-            scheduleLock(firstSetAt, commitToggle);
+        if (savedHeld === 'true') {
+            heldYes.checked = true;
         }
+        else {
+            heldNo.checked = true;
+        }
+    }
+    const commitRadios = document.querySelectorAll('input[name="commit"]');
+    commitRadios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            const value = document.querySelector('input[name="commit"]:checked').value === 'yes';
+            localStorage.setItem(COMMIT_KEY, String(value));
+            let firstSetAt = parseInt(localStorage.getItem(COMMIT_TIME_KEY) || '0', 10);
+            if (!firstSetAt) {
+                firstSetAt = Date.now();
+                localStorage.setItem(COMMIT_TIME_KEY, String(firstSetAt));
+                scheduleLock(firstSetAt, [commitYes, commitNo]);
+            }
+        });
     });
-    heldToggle.addEventListener('change', () => {
-        updateLabel(heldToggle, heldLabel);
-        localStorage.setItem(HELD_KEY, String(heldToggle.checked));
+    const heldRadios = document.querySelectorAll('input[name="held"]');
+    heldRadios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            const value = document.querySelector('input[name="held"]:checked').value === 'yes';
+            localStorage.setItem(HELD_KEY, String(value));
+        });
     });
 }
 document.addEventListener('DOMContentLoaded', setup);
