@@ -93,6 +93,36 @@ describe('Commitment UI', () => {
     expect(localStorage.getItem('heldToggle')).toBeNull();
   });
 
+  it('prompts for held selection when missing from previous day', () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    localStorage.setItem('commitFirstSetAt', String(yesterday.getTime()));
+    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+    setup();
+    expect(alertSpy).toHaveBeenCalledWith('Please record whether you held your commitment yesterday.');
+    const heldYes = document.getElementById('held-yes') as HTMLInputElement;
+    heldYes.checked = true;
+    heldYes.dispatchEvent(new Event('change'));
+    const successes = JSON.parse(localStorage.getItem('heldSuccessDates') || '[]');
+    expect(successes).toContain(yesterday.toISOString().split('T')[0]);
+    expect(localStorage.getItem('heldToggle')).toBeNull();
+    const commitYes = document.getElementById('commit-yes') as HTMLInputElement;
+    expect(commitYes.disabled).toBe(false);
+    alertSpy.mockRestore();
+  });
+
+  it('warns and clears after multiple days of inactivity', () => {
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    localStorage.setItem('commitFirstSetAt', String(twoDaysAgo.getTime()));
+    localStorage.setItem('commitToggle', 'true');
+    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+    setup();
+    expect(alertSpy).toHaveBeenCalledWith('It has been a while since your last visit. Please open the app more often.');
+    expect(localStorage.getItem('commitToggle')).toBeNull();
+    alertSpy.mockRestore();
+  });
+
   it('renders success visualization', () => {
     const todayStr = new Date().toISOString().split('T')[0];
     localStorage.setItem('heldSuccessDates', JSON.stringify([todayStr]));
