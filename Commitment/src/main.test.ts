@@ -4,12 +4,14 @@ describe('Commitment UI', () => {
   beforeEach(() => {
     document.body.innerHTML = `
       <div>
-        <label>Commit: <input type="checkbox" id="commit-toggle"></label>
-        <span id="commit-label">No</span>
+        <span>Commit:</span>
+        <label><input type="radio" name="commit" id="commit-yes" value="yes"> Yes</label>
+        <label><input type="radio" name="commit" id="commit-no" value="no"> No</label>
       </div>
       <div>
-        <label>Held it: <input type="checkbox" id="held-toggle"></label>
-        <span id="held-label">No</span>
+        <span>Held it:</span>
+        <label><input type="radio" name="held" id="held-yes" value="yes"> Yes</label>
+        <label><input type="radio" name="held" id="held-no" value="no"> No</label>
       </div>`;
     localStorage.clear();
     jest.useFakeTimers();
@@ -24,18 +26,20 @@ describe('Commitment UI', () => {
     localStorage.setItem('commitFirstSetAt', String(Date.now()));
     localStorage.setItem('heldToggle', 'true');
     setup();
-    const commit = document.getElementById('commit-toggle') as HTMLInputElement;
-    const held = document.getElementById('held-toggle') as HTMLInputElement;
-    expect(commit.checked).toBe(true);
-    expect(held.checked).toBe(true);
+    const commitYes = document.getElementById('commit-yes') as HTMLInputElement;
+    const heldYes = document.getElementById('held-yes') as HTMLInputElement;
+    expect(commitYes.checked).toBe(true);
+    expect(heldYes.checked).toBe(true);
   });
 
   it('locks commit toggle after 30 seconds', () => {
     setup();
-    const commit = document.getElementById('commit-toggle') as HTMLInputElement;
-    commit.checked = true;
-    commit.dispatchEvent(new Event('change'));
+    const commitYes = document.getElementById('commit-yes') as HTMLInputElement;
+    commitYes.checked = true;
+    commitYes.dispatchEvent(new Event('change'));
     jest.advanceTimersByTime(30000);
-    expect(commit.disabled).toBe(true);
+    const commitNo = document.getElementById('commit-no') as HTMLInputElement;
+    expect(commitYes.disabled).toBe(true);
+    expect(commitNo.disabled).toBe(true);
   });
 });
