@@ -7,14 +7,14 @@ function isSameDay(a, b) {
         a.getMonth() === b.getMonth() &&
         a.getDate() === b.getDate();
 }
-function scheduleLock(firstSetAt, radios) {
-    const disableRadios = () => radios.forEach(r => r.disabled = true);
+function scheduleLock(firstSetAt, inputs) {
+    const disableInputs = () => inputs.forEach(r => r.disabled = true);
     const remaining = LOCK_DURATION_MS - (Date.now() - firstSetAt);
     if (remaining <= 0) {
-        disableRadios();
+        disableInputs();
     }
     else {
-        setTimeout(disableRadios, remaining);
+        setTimeout(disableInputs, remaining);
     }
 }
 export function setup() {
@@ -51,26 +51,50 @@ export function setup() {
             heldNo.checked = true;
         }
     }
-    const commitRadios = document.querySelectorAll('input[name="commit"]');
-    commitRadios.forEach(radio => {
-        radio.addEventListener('change', () => {
-            const value = document.querySelector('input[name="commit"]:checked').value === 'yes';
-            localStorage.setItem(COMMIT_KEY, String(value));
-            let firstSetAt = parseInt(localStorage.getItem(COMMIT_TIME_KEY) || '0', 10);
-            if (!firstSetAt) {
-                firstSetAt = Date.now();
-                localStorage.setItem(COMMIT_TIME_KEY, String(firstSetAt));
-                scheduleLock(firstSetAt, [commitYes, commitNo]);
-            }
-        });
-    });
-    const heldRadios = document.querySelectorAll('input[name="held"]');
-    heldRadios.forEach(radio => {
-        radio.addEventListener('change', () => {
-            const value = document.querySelector('input[name="held"]:checked').value === 'yes';
-            localStorage.setItem(HELD_KEY, String(value));
-        });
-    });
+    const handleCommitChange = () => {
+        if (commitYes.checked) {
+            commitNo.checked = false;
+        }
+        else if (commitNo.checked) {
+            commitYes.checked = false;
+        }
+        if (commitYes.checked) {
+            localStorage.setItem(COMMIT_KEY, 'true');
+        }
+        else if (commitNo.checked) {
+            localStorage.setItem(COMMIT_KEY, 'false');
+        }
+        else {
+            localStorage.removeItem(COMMIT_KEY);
+        }
+        let firstSetAt = parseInt(localStorage.getItem(COMMIT_TIME_KEY) || '0', 10);
+        if (!firstSetAt && (commitYes.checked || commitNo.checked)) {
+            firstSetAt = Date.now();
+            localStorage.setItem(COMMIT_TIME_KEY, String(firstSetAt));
+            scheduleLock(firstSetAt, [commitYes, commitNo]);
+        }
+    };
+    commitYes.addEventListener('change', handleCommitChange);
+    commitNo.addEventListener('change', handleCommitChange);
+    const handleHeldChange = () => {
+        if (heldYes.checked) {
+            heldNo.checked = false;
+        }
+        else if (heldNo.checked) {
+            heldYes.checked = false;
+        }
+        if (heldYes.checked) {
+            localStorage.setItem(HELD_KEY, 'true');
+        }
+        else if (heldNo.checked) {
+            localStorage.setItem(HELD_KEY, 'false');
+        }
+        else {
+            localStorage.removeItem(HELD_KEY);
+        }
+    };
+    heldYes.addEventListener('change', handleHeldChange);
+    heldNo.addEventListener('change', handleHeldChange);
 }
 document.addEventListener('DOMContentLoaded', setup);
 export { isSameDay }; // for testing

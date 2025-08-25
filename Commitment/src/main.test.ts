@@ -5,13 +5,13 @@ describe('Commitment UI', () => {
     document.body.innerHTML = `
       <div>
         <span>Commit:</span>
-        <label><input type="radio" name="commit" id="commit-yes" value="yes"> Yes</label>
-        <label><input type="radio" name="commit" id="commit-no" value="no"> No</label>
+        <label><input type="checkbox" name="commit" id="commit-yes" value="yes"> Yes</label>
+        <label><input type="checkbox" name="commit" id="commit-no" value="no"> No</label>
       </div>
       <div>
         <span>Held it:</span>
-        <label><input type="radio" name="held" id="held-yes" value="yes"> Yes</label>
-        <label><input type="radio" name="held" id="held-no" value="no"> No</label>
+        <label><input type="checkbox" name="held" id="held-yes" value="yes"> Yes</label>
+        <label><input type="checkbox" name="held" id="held-no" value="no"> No</label>
       </div>`;
     localStorage.clear();
     jest.useFakeTimers();
@@ -41,5 +41,19 @@ describe('Commitment UI', () => {
     const commitNo = document.getElementById('commit-no') as HTMLInputElement;
     expect(commitYes.disabled).toBe(true);
     expect(commitNo.disabled).toBe(true);
+  });
+
+  it('allows clearing a selection without selecting the other', () => {
+    setup();
+    const commitYes = document.getElementById('commit-yes') as HTMLInputElement;
+    const commitNo = document.getElementById('commit-no') as HTMLInputElement;
+    commitYes.checked = true;
+    commitYes.dispatchEvent(new Event('change'));
+    expect(commitYes.checked).toBe(true);
+    expect(commitNo.checked).toBe(false);
+    commitYes.checked = false;
+    commitYes.dispatchEvent(new Event('change'));
+    expect(commitYes.checked).toBe(false);
+    expect(commitNo.checked).toBe(false);
   });
 });
