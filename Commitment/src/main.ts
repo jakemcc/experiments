@@ -2,6 +2,7 @@ const COMMIT_KEY = 'commitToggle';
 const COMMIT_TIME_KEY = 'commitFirstSetAt';
 const HELD_KEY = 'heldToggle';
 const HELD_SUCCESS_KEY = 'heldSuccessDates';
+const HELD_FAILURE_KEY = 'heldFailureDates';
 const LOCK_DURATION_MS = 30 * 1000;
 const VISUAL_DAYS = 7;
 
@@ -21,7 +22,7 @@ function scheduleLock(firstSetAt: number, inputs: HTMLInputElement[]) {
   }
 }
 
-function renderSuccesses(container: HTMLElement, dates: string[]) {
+function renderSuccesses(container: HTMLElement, successes: string[], failures: string[]) {
   const today = new Date();
   for (let i = VISUAL_DAYS - 1; i >= 0; i--) {
     const d = new Date(today);
@@ -29,8 +30,10 @@ function renderSuccesses(container: HTMLElement, dates: string[]) {
     const dateStr = d.toISOString().split('T')[0];
     const square = document.createElement('div');
     square.className = 'day';
-    if (dates.includes(dateStr)) {
+    if (successes.includes(dateStr)) {
       square.classList.add('success');
+    } else if (failures.includes(dateStr)) {
+      square.classList.add('failure');
     }
     container.appendChild(square);
   }
@@ -53,6 +56,15 @@ export function setup() {
     if (!successes.includes(dateStr)) {
       successes.push(dateStr);
       localStorage.setItem(HELD_SUCCESS_KEY, JSON.stringify(successes));
+    }
+  };
+
+  const recordFailure = (firstSetAt: number) => {
+    const failures = JSON.parse(localStorage.getItem(HELD_FAILURE_KEY) || '[]');
+    const dateStr = new Date(firstSetAt).toISOString().split('T')[0];
+    if (!failures.includes(dateStr)) {
+      failures.push(dateStr);
+      localStorage.setItem(HELD_FAILURE_KEY, JSON.stringify(failures));
     }
   };
 
@@ -85,6 +97,8 @@ export function setup() {
       } else {
         if (held === 'true') {
           recordSuccess(firstSetAt);
+        } else if (held === 'false') {
+          recordFailure(firstSetAt);
         }
         resetSelections();
       }
@@ -116,7 +130,8 @@ export function setup() {
 
   if (successContainer) {
     const successes = JSON.parse(localStorage.getItem(HELD_SUCCESS_KEY) || '[]');
-    renderSuccesses(successContainer, successes);
+    const failures = JSON.parse(localStorage.getItem(HELD_FAILURE_KEY) || '[]');
+    renderSuccesses(successContainer, successes, failures);
   }
 
   const handleCommitChange = (ev: Event) => {
@@ -166,6 +181,8 @@ export function setup() {
       const firstSetAt = parseInt(localStorage.getItem(COMMIT_TIME_KEY) || '0', 10);
       if (heldYes.checked) {
         recordSuccess(firstSetAt);
+      } else if (heldNo.checked) {
+        recordFailure(firstSetAt);
       }
       resetSelections();
       awaitingHeld = false;

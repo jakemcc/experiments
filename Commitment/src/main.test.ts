@@ -93,6 +93,17 @@ describe('Commitment UI', () => {
     expect(localStorage.getItem('heldToggle')).toBeNull();
   });
 
+  it('records failed days on reset', () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    localStorage.setItem('commitFirstSetAt', String(yesterday.getTime()));
+    localStorage.setItem('heldToggle', 'false');
+    setup();
+    const failures = JSON.parse(localStorage.getItem('heldFailureDates') || '[]');
+    expect(failures).toContain(yesterday.toISOString().split('T')[0]);
+    expect(localStorage.getItem('heldToggle')).toBeNull();
+  });
+
   it('prompts for held selection when missing from previous day', () => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -130,5 +141,14 @@ describe('Commitment UI', () => {
     const squares = document.querySelectorAll('#success-visual .day');
     expect(squares.length).toBe(7);
     expect(squares[squares.length - 1].classList.contains('success')).toBe(true);
+  });
+
+  it('renders failure visualization', () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    localStorage.setItem('heldFailureDates', JSON.stringify([todayStr]));
+    setup();
+    const squares = document.querySelectorAll('#success-visual .day');
+    expect(squares.length).toBe(7);
+    expect(squares[squares.length - 1].classList.contains('failure')).toBe(true);
   });
 });
