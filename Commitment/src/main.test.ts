@@ -13,6 +13,7 @@ describe('Commitment UI', () => {
         <label><input type="checkbox" name="held" id="held-yes" value="yes"> Yes</label>
         <label><input type="checkbox" name="held" id="held-no" value="no"> No</label>
       </div>
+      <div id="held-prompt" hidden></div>
       <div id="success-visual"></div>`;
     localStorage.clear();
     jest.useFakeTimers();
@@ -109,9 +110,10 @@ describe('Commitment UI', () => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     localStorage.setItem('commitFirstSetAt', String(yesterday.getTime()));
-    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
     setup();
-    expect(alertSpy).toHaveBeenCalledWith('Please record whether you held your commitment yesterday.');
+    const prompt = document.getElementById('held-prompt') as HTMLElement;
+    expect(prompt.hidden).toBe(false);
+    expect(prompt.textContent).toBe('Please record whether you held your commitment yesterday.');
     const heldYes = document.getElementById('held-yes') as HTMLInputElement;
     heldYes.checked = true;
     heldYes.dispatchEvent(new Event('change'));
@@ -120,7 +122,7 @@ describe('Commitment UI', () => {
     expect(localStorage.getItem('heldToggle')).toBeNull();
     const commitYes = document.getElementById('commit-yes') as HTMLInputElement;
     expect(commitYes.disabled).toBe(false);
-    alertSpy.mockRestore();
+    expect(prompt.hidden).toBe(true);
   });
 
   it('warns and clears after multiple days of inactivity', () => {
