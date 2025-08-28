@@ -5,6 +5,8 @@ const HELD_SUCCESS_KEY = 'heldSuccessDates';
 const HELD_FAILURE_KEY = 'heldFailureDates';
 const LOCK_DURATION_MS = 30 * 1000;
 const VISUAL_DAYS = 7;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const ADMIN_OFFSET_KEY = 'adminDayOffset';
 
 function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() &&
@@ -12,9 +14,21 @@ function isSameDay(a: Date, b: Date): boolean {
     a.getDate() === b.getDate();
 }
 
+function getOffset(): number {
+  return parseInt(localStorage.getItem(ADMIN_OFFSET_KEY) || '0', 10);
+}
+
+function currentTime(): number {
+  return Date.now() + getOffset() * DAY_MS;
+}
+
+function currentDate(): Date {
+  return new Date(currentTime());
+}
+
 function scheduleLock(firstSetAt: number, inputs: HTMLInputElement[]) {
   const disableInputs = () => inputs.forEach(r => r.disabled = true);
-  const remaining = LOCK_DURATION_MS - (Date.now() - firstSetAt);
+  const remaining = LOCK_DURATION_MS - (currentTime() - firstSetAt);
   if (remaining <= 0) {
     disableInputs();
   } else {
@@ -23,7 +37,7 @@ function scheduleLock(firstSetAt: number, inputs: HTMLInputElement[]) {
 }
 
 function renderSuccesses(container: HTMLElement, successes: string[], failures: string[]) {
-  const today = new Date();
+  const today = currentDate();
   for (let i = VISUAL_DAYS - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
@@ -40,6 +54,12 @@ function renderSuccesses(container: HTMLElement, successes: string[], failures: 
 }
 
 export function setup() {
+  const params = new URLSearchParams(window.location.search);
+  const isAdmin = params.get('admin') === 'true';
+  if (!isAdmin) {
+    localStorage.removeItem(ADMIN_OFFSET_KEY);
+  }
+
   const commitYes = document.getElementById('commit-yes') as HTMLInputElement;
   const commitNo = document.getElementById('commit-no') as HTMLInputElement;
   const heldYes = document.getElementById('held-yes') as HTMLInputElement;
@@ -87,8 +107,8 @@ export function setup() {
   if (firstSetRaw) {
     const firstSetAt = parseInt(firstSetRaw, 10);
     const firstDate = new Date(firstSetAt);
-    const now = new Date();
-    const diffDays = Math.floor((now.getTime() - firstDate.getTime()) / (24 * 60 * 60 * 1000));
+    const now = currentDate();
+    const diffDays = Math.floor((now.getTime() - firstDate.getTime()) / DAY_MS);
     if (diffDays === 1) {
       const held = localStorage.getItem(HELD_KEY);
       if (held === null) {
@@ -152,7 +172,7 @@ export function setup() {
 
     let firstSetAt = parseInt(localStorage.getItem(COMMIT_TIME_KEY) || '0', 10);
     if (!firstSetAt && (commitYes.checked || commitNo.checked)) {
-      firstSetAt = Date.now();
+      firstSetAt = currentTime();
       localStorage.setItem(COMMIT_TIME_KEY, String(firstSetAt));
       scheduleLock(firstSetAt, [commitYes, commitNo]);
     }
@@ -191,6 +211,27 @@ export function setup() {
 
   heldYes.addEventListener('change', handleHeldChange);
   heldNo.addEventListener('change', handleHeldChange);
+
+  if (isAdmin) {
+    const adminDiv = document.createElement('div');
+    const nextBtn = document.createElement('button');
+    nextBtn.id = 'admin-next-day';
+    nextBtn.textContent = 'Next Day';
+    nextBtn.addEventListener('click', () => {
+      adjustDay(1);
+      location.reload();
+    });
+    const prevBtn = document.createElement('button');
+    prevBtn.id = 'admin-prev-day';
+    prevBtn.textContent = 'Previous Day';
+    prevBtn.addEventListener('click', () => {
+      adjustDay(-1);
+      location.reload();
+    });
+    adminDiv.appendChild(prevBtn);
+    adminDiv.appendChild(nextBtn);
+    document.body.appendChild(adminDiv);
+  }
 }
 
 if (document.readyState === 'loading') {
@@ -200,3 +241,8 @@ if (document.readyState === 'loading') {
 }
 
 export { isSameDay }; // for testing
+
+export function adjustDay(days: number) {
+  const offset = getOffset() + days;
+  localStorage.setItem(ADMIN_OFFSET_KEY, String(offset));
+}
