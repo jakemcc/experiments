@@ -157,6 +157,24 @@ describe('Commitment UI', () => {
     window.history.pushState({}, '', '/?admin=true');
     setup();
     expect(document.getElementById('admin-next-day')).not.toBeNull();
+    expect(document.getElementById('admin-clear-data')).not.toBeNull();
+  });
+
+  it('clears data with admin clear button', () => {
+    window.history.pushState({}, '', '/?admin=true');
+    localStorage.setItem('commitToggle', 'true');
+    const originalLocation = window.location;
+    const reloadSpy = jest.fn();
+    Object.defineProperty(window, 'location', {
+      value: { ...originalLocation, reload: reloadSpy },
+      configurable: true,
+    });
+    setup();
+    const clearBtn = document.getElementById('admin-clear-data') as HTMLButtonElement;
+    clearBtn.click();
+    expect(localStorage.getItem('commitToggle')).toBeNull();
+    expect(reloadSpy).toHaveBeenCalled();
+    Object.defineProperty(window, 'location', { value: originalLocation });
   });
 
   it('adjusts day offset', () => {
