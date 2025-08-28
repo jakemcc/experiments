@@ -228,8 +228,16 @@ export function setup() {
       adjustDay(-1);
       location.reload();
     });
+    const clearBtn = document.createElement('button');
+    clearBtn.id = 'admin-clear-data';
+    clearBtn.textContent = 'Clear Data';
+    clearBtn.addEventListener('click', () => {
+      localStorage.clear();
+      location.reload();
+    });
     adminDiv.appendChild(prevBtn);
     adminDiv.appendChild(nextBtn);
+    adminDiv.appendChild(clearBtn);
     document.body.appendChild(adminDiv);
   }
 }
