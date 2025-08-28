@@ -1,4 +1,4 @@
-import { setup } from './main';
+import { setup, adjustDay } from './main';
 
 describe('Commitment UI', () => {
   beforeEach(() => {
@@ -20,6 +20,7 @@ describe('Commitment UI', () => {
 
   afterEach(() => {
     jest.useRealTimers();
+    window.history.pushState({}, '', '/');
   });
 
   it('restores saved toggle states on load', () => {
@@ -150,5 +151,16 @@ describe('Commitment UI', () => {
     const squares = document.querySelectorAll('#success-visual .day');
     expect(squares.length).toBe(7);
     expect(squares[squares.length - 1].classList.contains('failure')).toBe(true);
+  });
+
+  it('shows admin controls when admin query param present', () => {
+    window.history.pushState({}, '', '/?admin=true');
+    setup();
+    expect(document.getElementById('admin-next-day')).not.toBeNull();
+  });
+
+  it('adjusts day offset', () => {
+    adjustDay(1);
+    expect(localStorage.getItem('adminDayOffset')).toBe('1');
   });
 });
