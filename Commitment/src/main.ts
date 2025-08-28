@@ -64,6 +64,7 @@ export function setup() {
   const commitNo = document.getElementById('commit-no') as HTMLInputElement;
   const heldYes = document.getElementById('held-yes') as HTMLInputElement;
   const heldNo = document.getElementById('held-no') as HTMLInputElement;
+  const heldPrompt = document.getElementById('held-prompt') as HTMLElement | null;
   const successContainer = document.getElementById('success-visual');
 
   if (!commitYes || !commitNo || !heldYes || !heldNo) {
@@ -98,6 +99,10 @@ export function setup() {
     localStorage.removeItem(COMMIT_KEY);
     localStorage.removeItem(COMMIT_TIME_KEY);
     localStorage.removeItem(HELD_KEY);
+    if (heldPrompt) {
+      heldPrompt.textContent = '';
+      heldPrompt.hidden = true;
+    }
   };
 
   let awaitingHeld = false;
@@ -113,7 +118,10 @@ export function setup() {
       const held = localStorage.getItem(HELD_KEY);
       if (held === null) {
         awaitingHeld = true;
-        alert('Please record whether you held your commitment yesterday.');
+        if (heldPrompt) {
+          heldPrompt.textContent = 'Please record whether you held your commitment yesterday.';
+          heldPrompt.hidden = false;
+        }
       } else {
         if (held === 'true') {
           recordSuccess(firstSetAt);
