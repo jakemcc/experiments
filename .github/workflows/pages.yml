@@ -23,17 +23,26 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: Commitment/package-lock.json
+          cache-dependency-path: |
+            Commitment/package-lock.json
+            StreakTracker/package-lock.json
       - name: Build Commitment app
         working-directory: Commitment
         run: |
           npm ci
           npm run build
+      - name: Build StreakTracker app
+        working-directory: StreakTracker
+        run: |
+          npm ci
+          npm run build
       - name: Prepare site
         run: |
-          mkdir -p site/Commitment
+          mkdir -p site/Commitment site/StreakTracker
           cp Commitment/index.html site/Commitment/
           cp -r Commitment/dist site/Commitment/
+          cp StreakTracker/index.html site/StreakTracker/
+          cp -r StreakTracker/dist site/StreakTracker/
           cp index.html site/index.html
       - uses: actions/upload-pages-artifact@v3
         with:
