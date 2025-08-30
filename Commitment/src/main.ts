@@ -44,6 +44,9 @@ function renderSuccesses(container: HTMLElement, successes: string[], failures: 
     const dateStr = d.toISOString().split('T')[0];
     const square = document.createElement('div');
     square.className = 'day';
+    if (i === 0) {
+      square.classList.add('current');
+    }
     if (successes.includes(dateStr)) {
       square.classList.add('success');
     } else if (failures.includes(dateStr)) {
