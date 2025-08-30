@@ -85,31 +85,31 @@ describe('Commitment UI', () => {
   });
 
   it('records held days on reset', () => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    localStorage.setItem('commitFirstSetAt', String(yesterday.getTime()));
+    jest.setSystemTime(new Date('2023-01-02T05:00:00Z'));
+    const commitTime = new Date('2023-01-01T22:00:00Z');
+    localStorage.setItem('commitFirstSetAt', String(commitTime.getTime()));
     localStorage.setItem('heldToggle', 'true');
     setup();
     const successes = JSON.parse(localStorage.getItem('heldSuccessDates') || '[]');
-    expect(successes).toContain(yesterday.toISOString().split('T')[0]);
+    expect(successes).toContain(commitTime.toISOString().split('T')[0]);
     expect(localStorage.getItem('heldToggle')).toBeNull();
   });
 
   it('records failed days on reset', () => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    localStorage.setItem('commitFirstSetAt', String(yesterday.getTime()));
+    jest.setSystemTime(new Date('2023-01-02T05:00:00Z'));
+    const commitTime = new Date('2023-01-01T22:00:00Z');
+    localStorage.setItem('commitFirstSetAt', String(commitTime.getTime()));
     localStorage.setItem('heldToggle', 'false');
     setup();
     const failures = JSON.parse(localStorage.getItem('heldFailureDates') || '[]');
-    expect(failures).toContain(yesterday.toISOString().split('T')[0]);
+    expect(failures).toContain(commitTime.toISOString().split('T')[0]);
     expect(localStorage.getItem('heldToggle')).toBeNull();
   });
 
   it('prompts for held selection when missing from previous day', () => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    localStorage.setItem('commitFirstSetAt', String(yesterday.getTime()));
+    jest.setSystemTime(new Date('2023-01-02T05:00:00Z'));
+    const commitTime = new Date('2023-01-01T22:00:00Z');
+    localStorage.setItem('commitFirstSetAt', String(commitTime.getTime()));
     setup();
     const prompt = document.getElementById('held-prompt') as HTMLElement;
     expect(prompt.hidden).toBe(false);
@@ -118,7 +118,7 @@ describe('Commitment UI', () => {
     heldYes.checked = true;
     heldYes.dispatchEvent(new Event('change'));
     const successes = JSON.parse(localStorage.getItem('heldSuccessDates') || '[]');
-    expect(successes).toContain(yesterday.toISOString().split('T')[0]);
+    expect(successes).toContain(commitTime.toISOString().split('T')[0]);
     expect(localStorage.getItem('heldToggle')).toBeNull();
     const commitYes = document.getElementById('commit-yes') as HTMLInputElement;
     expect(commitYes.disabled).toBe(false);
@@ -126,9 +126,9 @@ describe('Commitment UI', () => {
   });
 
   it('warns and clears after multiple days of inactivity', () => {
-    const twoDaysAgo = new Date();
-    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-    localStorage.setItem('commitFirstSetAt', String(twoDaysAgo.getTime()));
+    jest.setSystemTime(new Date('2023-01-03T05:00:00Z'));
+    const commitTime = new Date('2023-01-01T22:00:00Z');
+    localStorage.setItem('commitFirstSetAt', String(commitTime.getTime()));
     localStorage.setItem('commitToggle', 'true');
     const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
     setup();
