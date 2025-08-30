@@ -7,6 +7,7 @@ const LOCK_DURATION_MS = 30 * 1000;
 const VISUAL_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ADMIN_OFFSET_KEY = 'adminDayOffset';
+const DAY_CUTOFF_HOUR = 4;
 
 function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() &&
@@ -24,6 +25,12 @@ function currentTime(): number {
 
 function currentDate(): Date {
   return new Date(currentTime());
+}
+
+function getAppDay(date: Date): number {
+  const adjusted = new Date(date);
+  adjusted.setHours(adjusted.getHours() - DAY_CUTOFF_HOUR, 0, 0, 0);
+  return Math.floor(adjusted.getTime() / DAY_MS);
 }
 
 function scheduleLock(firstSetAt: number, inputs: HTMLInputElement[]) {
@@ -113,7 +120,7 @@ export function setup() {
     const firstSetAt = parseInt(firstSetRaw, 10);
     const firstDate = new Date(firstSetAt);
     const now = currentDate();
-    const diffDays = Math.floor((now.getTime() - firstDate.getTime()) / DAY_MS);
+    const diffDays = getAppDay(now) - getAppDay(firstDate);
     if (diffDays === 1) {
       const held = localStorage.getItem(HELD_KEY);
       if (held === null) {
