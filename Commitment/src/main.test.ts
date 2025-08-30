@@ -155,6 +155,13 @@ describe('Commitment UI', () => {
     expect(squares[squares.length - 1].classList.contains('failure')).toBe(true);
   });
 
+  it('highlights the current day', () => {
+    setup();
+    const squares = document.querySelectorAll('#success-visual .day');
+    expect(squares.length).toBe(7);
+    expect(squares[squares.length - 1].classList.contains('current')).toBe(true);
+  });
+
   it('shows admin controls when admin query param present', () => {
     window.history.pushState({}, '', '/?admin=true');
     setup();
