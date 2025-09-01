@@ -7,49 +7,77 @@ export function generateCalendar(year, month) {
     }
     return cells;
 }
-export function setup() {
-    const now = new Date();
-    const label = document.getElementById('month-label');
-    if (label) {
-        const monthName = now.toLocaleString('default', { month: 'long' });
-        label.textContent = `${monthName} ${now.getFullYear()}`;
+function getStoredMonths(now) {
+    const months = new Set();
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && /^\d{4}-\d{1,2}-\d{1,2}$/.test(key)) {
+            const [y, m] = key.split('-').map(Number);
+            months.add(`${y}-${m}`);
+        }
     }
-    const calendar = document.getElementById('calendar');
-    if (!calendar) {
+    months.add(`${now.getFullYear()}-${now.getMonth() + 1}`);
+    return Array.from(months).map((str) => {
+        const [y, m] = str.split('-').map(Number);
+        return { year: y, month: m };
+    });
+}
+export function setup() {
+    const container = document.getElementById('calendars');
+    if (!container) {
         return;
     }
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const cells = generateCalendar(year, month);
-    cells.forEach((value) => {
-        const cell = document.createElement('div');
-        cell.className = 'day';
-        if (value !== null) {
-            cell.textContent = String(value);
-            const dateKey = `${year}-${month + 1}-${value}`;
-            let state = Number(localStorage.getItem(dateKey)) || 0;
-            const applyState = (s) => {
-                cell.classList.remove('red', 'green');
-                if (s === 1) {
-                    cell.classList.add('red');
-                }
-                else if (s === 2) {
-                    cell.classList.add('green');
-                }
-            };
-            applyState(state);
-            cell.addEventListener('click', () => {
-                state = (state + 1) % 3;
-                applyState(state);
-                if (state === 0) {
-                    localStorage.removeItem(dateKey);
-                }
-                else {
-                    localStorage.setItem(dateKey, String(state));
-                }
-            });
+    container.innerHTML = '';
+    const now = new Date();
+    const months = getStoredMonths(now).sort((a, b) => {
+        if (a.year === b.year) {
+            return b.month - a.month;
         }
-        calendar.appendChild(cell);
+        return b.year - a.year;
+    });
+    months.forEach(({ year, month }) => {
+        const section = document.createElement('section');
+        const label = document.createElement('h1');
+        const monthName = new Date(year, month - 1).toLocaleString('default', {
+            month: 'long',
+        });
+        label.textContent = `${monthName} ${year}`;
+        section.appendChild(label);
+        const calendar = document.createElement('div');
+        calendar.className = 'calendar';
+        const cells = generateCalendar(year, month - 1);
+        cells.forEach((value) => {
+            const cell = document.createElement('div');
+            cell.className = 'day';
+            if (value !== null) {
+                cell.textContent = String(value);
+                const dateKey = `${year}-${month}-${value}`;
+                let state = Number(localStorage.getItem(dateKey)) || 0;
+                const applyState = (s) => {
+                    cell.classList.remove('red', 'green');
+                    if (s === 1) {
+                        cell.classList.add('red');
+                    }
+                    else if (s === 2) {
+                        cell.classList.add('green');
+                    }
+                };
+                applyState(state);
+                cell.addEventListener('click', () => {
+                    state = (state + 1) % 3;
+                    applyState(state);
+                    if (state === 0) {
+                        localStorage.removeItem(dateKey);
+                    }
+                    else {
+                        localStorage.setItem(dateKey, String(state));
+                    }
+                });
+            }
+            calendar.appendChild(cell);
+        });
+        section.appendChild(calendar);
+        container.appendChild(section);
     });
 }
 if (document.readyState === 'loading') {
