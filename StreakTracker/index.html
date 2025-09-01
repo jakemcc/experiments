@@ -9,10 +9,11 @@
       font-family: Arial, sans-serif;
       padding: 1rem;
     }
-    #calendar {
+    .calendar {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
       gap: 2px;
+      margin-bottom: 1rem;
     }
     .day {
       border: 1px solid #ccc;
@@ -28,8 +29,7 @@
   </style>
 </head>
 <body>
-  <h1 id="month-label"></h1>
-  <div id="calendar"></div>
+  <div id="calendars"></div>
   <script type="module" src="./dist/main.js"></script>
 </body>
 </html>
