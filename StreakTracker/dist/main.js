@@ -45,6 +45,36 @@ export function setup() {
         section.appendChild(label);
         const calendar = document.createElement('div');
         calendar.className = 'calendar';
+        const stats = document.createElement('p');
+        stats.className = 'stats';
+        const updateStats = () => {
+            const daysInMonth = new Date(year, month, 0).getDate();
+            let daysPassed = 0;
+            if (year === now.getFullYear() && month === now.getMonth() + 1) {
+                daysPassed = now.getDate();
+            }
+            else if (year < now.getFullYear() ||
+                (year === now.getFullYear() && month < now.getMonth() + 1)) {
+                daysPassed = daysInMonth;
+            }
+            let greenDays = 0;
+            let longestStreak = 0;
+            let currentStreak = 0;
+            for (let day = 1; day <= daysPassed; day++) {
+                const state = Number(localStorage.getItem(`${year}-${month}-${day}`));
+                if (state === 2) {
+                    greenDays++;
+                    currentStreak++;
+                    if (currentStreak > longestStreak) {
+                        longestStreak = currentStreak;
+                    }
+                }
+                else {
+                    currentStreak = 0;
+                }
+            }
+            stats.textContent = `Green days: ${greenDays}/${daysPassed}, Longest green streak: ${longestStreak}`;
+        };
         const cells = generateCalendar(year, month - 1);
         cells.forEach((value) => {
             const cell = document.createElement('div');
@@ -72,12 +102,15 @@ export function setup() {
                     else {
                         localStorage.setItem(dateKey, String(state));
                     }
+                    updateStats();
                 });
             }
             calendar.appendChild(cell);
         });
         section.appendChild(calendar);
+        section.appendChild(stats);
         container.appendChild(section);
+        updateStats();
     });
 }
 if (document.readyState === 'loading') {

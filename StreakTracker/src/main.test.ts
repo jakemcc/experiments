@@ -49,3 +49,26 @@ test('renders previous months below current month', () => {
   expect(headings[0]).toBe(currentLabel);
   expect(headings[1]).toBe(prevLabel);
 });
+
+test('stats update with green days and longest streak', () => {
+  jest.useFakeTimers();
+  jest.setSystemTime(new Date('2023-06-15'));
+  document.body.innerHTML = '<div id="calendars"></div>';
+  localStorage.clear();
+  setup();
+  const stats = document.querySelector('.stats') as HTMLElement;
+  expect(stats.textContent).toBe('Green days: 0/15, Longest green streak: 0');
+  const day1 = Array.from(document.querySelectorAll('.day')).find(
+    (c) => c.textContent === '1'
+  ) as HTMLElement;
+  day1.click();
+  day1.click();
+  expect(stats.textContent).toBe('Green days: 1/15, Longest green streak: 1');
+  const day2 = Array.from(document.querySelectorAll('.day')).find(
+    (c) => c.textContent === '2'
+  ) as HTMLElement;
+  day2.click();
+  day2.click();
+  expect(stats.textContent).toBe('Green days: 2/15, Longest green streak: 2');
+  jest.useRealTimers();
+});
