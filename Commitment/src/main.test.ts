@@ -110,6 +110,7 @@ describe('Commitment UI', () => {
     jest.setSystemTime(new Date('2023-01-02T05:00:00Z'));
     const commitTime = new Date('2023-01-01T22:00:00Z');
     localStorage.setItem('commitFirstSetAt', String(commitTime.getTime()));
+    localStorage.setItem('commitToggle', 'true');
     setup();
     const prompt = document.getElementById('held-prompt') as HTMLElement;
     expect(prompt.hidden).toBe(false);
@@ -123,6 +124,19 @@ describe('Commitment UI', () => {
     const commitYes = document.getElementById('commit-yes') as HTMLInputElement;
     expect(commitYes.disabled).toBe(false);
     expect(prompt.hidden).toBe(true);
+  });
+
+  it('updates success visualization after recording held result', () => {
+    jest.setSystemTime(new Date('2023-01-02T05:00:00Z'));
+    const commitTime = new Date('2023-01-01T22:00:00Z');
+    localStorage.setItem('commitFirstSetAt', String(commitTime.getTime()));
+    localStorage.setItem('commitToggle', 'true');
+    setup();
+    const heldYes = document.getElementById('held-yes') as HTMLInputElement;
+    heldYes.checked = true;
+    heldYes.dispatchEvent(new Event('change'));
+    const squares = document.querySelectorAll('#success-visual .day');
+    expect(squares[squares.length - 2].classList.contains('success')).toBe(true);
   });
 
   it('warns and clears after multiple days of inactivity', () => {

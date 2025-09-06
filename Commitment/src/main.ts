@@ -224,6 +224,12 @@ export function setup() {
       }
       resetSelections();
       awaitingHeld = false;
+      if (successContainer) {
+        successContainer.innerHTML = '';
+        const successes = JSON.parse(localStorage.getItem(HELD_SUCCESS_KEY) || '[]');
+        const failures = JSON.parse(localStorage.getItem(HELD_FAILURE_KEY) || '[]');
+        renderSuccesses(successContainer, successes, failures);
+      }
     }
   };
 
