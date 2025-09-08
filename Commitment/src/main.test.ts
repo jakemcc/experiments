@@ -169,6 +169,15 @@ describe('Commitment UI', () => {
     expect(squares[squares.length - 1].classList.contains('failure')).toBe(true);
   });
 
+  it('shows dates under success visualization', () => {
+    setup();
+    const labels = document.querySelectorAll('#success-visual .day-date');
+    expect(labels.length).toBe(7);
+    const today = new Date();
+    const expected = `${today.getMonth() + 1}/${today.getDate()}`;
+    expect(labels[labels.length - 1].textContent).toBe(expected);
+  });
+
   it('highlights the current day', () => {
     setup();
     const squares = document.querySelectorAll('#success-visual .day');

@@ -49,6 +49,9 @@ function renderSuccesses(container: HTMLElement, successes: string[], failures: 
     const d = new Date(today);
     d.setDate(today.getDate() - i);
     const dateStr = d.toISOString().split('T')[0];
+    const wrapper = document.createElement('div');
+    wrapper.className = 'day-container';
+
     const square = document.createElement('div');
     square.className = 'day';
     if (i === 0) {
@@ -59,7 +62,14 @@ function renderSuccesses(container: HTMLElement, successes: string[], failures: 
     } else if (failures.includes(dateStr)) {
       square.classList.add('failure');
     }
-    container.appendChild(square);
+    wrapper.appendChild(square);
+
+    const label = document.createElement('div');
+    label.className = 'day-date';
+    label.textContent = `${d.getMonth() + 1}/${d.getDate()}`;
+    wrapper.appendChild(label);
+
+    container.appendChild(wrapper);
   }
 }
 
