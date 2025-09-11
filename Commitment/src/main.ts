@@ -91,9 +91,15 @@ export function setup() {
     return;
   }
 
+  const appDateString = (time: number) => {
+    const day = getAppDay(new Date(time));
+    const d = new Date(day * DAY_MS);
+    return d.toISOString().split('T')[0];
+  };
+
   const recordSuccess = (firstSetAt: number) => {
     const successes = JSON.parse(localStorage.getItem(HELD_SUCCESS_KEY) || '[]');
-    const dateStr = new Date(firstSetAt).toISOString().split('T')[0];
+    const dateStr = appDateString(firstSetAt);
     if (!successes.includes(dateStr)) {
       successes.push(dateStr);
       localStorage.setItem(HELD_SUCCESS_KEY, JSON.stringify(successes));
@@ -102,7 +108,7 @@ export function setup() {
 
   const recordFailure = (firstSetAt: number) => {
     const failures = JSON.parse(localStorage.getItem(HELD_FAILURE_KEY) || '[]');
-    const dateStr = new Date(firstSetAt).toISOString().split('T')[0];
+    const dateStr = appDateString(firstSetAt);
     if (!failures.includes(dateStr)) {
       failures.push(dateStr);
       localStorage.setItem(HELD_FAILURE_KEY, JSON.stringify(failures));

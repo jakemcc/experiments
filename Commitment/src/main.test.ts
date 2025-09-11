@@ -126,6 +126,19 @@ describe('Commitment UI', () => {
     expect(prompt.hidden).toBe(true);
   });
 
+  it('records correct date for early morning commit when held is recorded next day', () => {
+    jest.setSystemTime(new Date('2023-01-01T05:00:00Z'));
+    const commitTime = new Date('2023-01-01T03:00:00Z');
+    localStorage.setItem('commitFirstSetAt', String(commitTime.getTime()));
+    localStorage.setItem('commitToggle', 'true');
+    setup();
+    const heldYes = document.getElementById('held-yes') as HTMLInputElement;
+    heldYes.checked = true;
+    heldYes.dispatchEvent(new Event('change'));
+    const successes = JSON.parse(localStorage.getItem('heldSuccessDates') || '[]');
+    expect(successes).toContain('2022-12-31');
+  });
+
   it('updates success visualization after recording held result', () => {
     jest.setSystemTime(new Date('2023-01-02T05:00:00Z'));
     const commitTime = new Date('2023-01-01T22:00:00Z');
