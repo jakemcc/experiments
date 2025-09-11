@@ -139,6 +139,24 @@ describe('Commitment UI', () => {
     expect(squares[squares.length - 2].classList.contains('success')).toBe(true);
   });
 
+  it('records success for the previous local day when crossing UTC midnight', () => {
+    const realOffset = Date.prototype.getTimezoneOffset;
+    Date.prototype.getTimezoneOffset = () => 300;
+    jest.setSystemTime(new Date('2023-01-02T13:00:00Z'));
+    const commitTime = new Date('2023-01-02T03:00:00Z');
+    localStorage.setItem('commitFirstSetAt', String(commitTime.getTime()));
+    localStorage.setItem('commitToggle', 'true');
+    setup();
+    const heldYes = document.getElementById('held-yes') as HTMLInputElement;
+    heldYes.checked = true;
+    heldYes.dispatchEvent(new Event('change'));
+    const successes = JSON.parse(localStorage.getItem('heldSuccessDates') || '[]');
+    expect(successes).toContain('2023-01-01');
+    const squares = document.querySelectorAll('#success-visual .day');
+    expect(squares[squares.length - 2].classList.contains('success')).toBe(true);
+    Date.prototype.getTimezoneOffset = realOffset;
+  });
+
   it('warns and clears after multiple days of inactivity', () => {
     jest.setSystemTime(new Date('2023-01-03T05:00:00Z'));
     const commitTime = new Date('2023-01-01T22:00:00Z');
