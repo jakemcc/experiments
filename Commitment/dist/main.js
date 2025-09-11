@@ -27,6 +27,11 @@ function getAppDay(date) {
     adjusted.setHours(adjusted.getHours() - DAY_CUTOFF_HOUR, 0, 0, 0);
     return Math.floor(adjusted.getTime() / DAY_MS);
 }
+function getDateKey(date) {
+    const d = new Date(date.getTime() - DAY_CUTOFF_HOUR * 60 * 60 * 1000);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split('T')[0];
+}
 function scheduleLock(firstSetAt, inputs) {
     const disableInputs = () => inputs.forEach(r => r.disabled = true);
     const remaining = LOCK_DURATION_MS - (currentTime() - firstSetAt);
@@ -42,7 +47,7 @@ function renderSuccesses(container, successes, failures) {
     for (let i = VISUAL_DAYS - 1; i >= 0; i--) {
         const d = new Date(today);
         d.setDate(today.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
+        const dateStr = getDateKey(d);
         const wrapper = document.createElement('div');
         wrapper.className = 'day-container';
         const square = document.createElement('div');
@@ -81,7 +86,7 @@ export function setup() {
     }
     const recordSuccess = (firstSetAt) => {
         const successes = JSON.parse(localStorage.getItem(HELD_SUCCESS_KEY) || '[]');
-        const dateStr = new Date(firstSetAt).toISOString().split('T')[0];
+        const dateStr = getDateKey(new Date(firstSetAt));
         if (!successes.includes(dateStr)) {
             successes.push(dateStr);
             localStorage.setItem(HELD_SUCCESS_KEY, JSON.stringify(successes));
@@ -89,7 +94,7 @@ export function setup() {
     };
     const recordFailure = (firstSetAt) => {
         const failures = JSON.parse(localStorage.getItem(HELD_FAILURE_KEY) || '[]');
-        const dateStr = new Date(firstSetAt).toISOString().split('T')[0];
+        const dateStr = getDateKey(new Date(firstSetAt));
         if (!failures.includes(dateStr)) {
             failures.push(dateStr);
             localStorage.setItem(HELD_FAILURE_KEY, JSON.stringify(failures));
