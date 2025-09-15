@@ -89,16 +89,18 @@ export function setup() {
         const dateKey = `${year}-${month}-${value}`;
         let state = Number(localStorage.getItem(dateKey)) || 0;
         const applyState = (s: number) => {
-          cell.classList.remove('red', 'green');
+          cell.classList.remove('red', 'green', 'blue');
           if (s === 1) {
             cell.classList.add('red');
           } else if (s === 2) {
             cell.classList.add('green');
+          } else if (s === 3) {
+            cell.classList.add('blue');
           }
         };
         applyState(state);
         cell.addEventListener('click', () => {
-          state = (state + 1) % 3;
+          state = (state + 1) % 4;
           applyState(state);
           if (state === 0) {
             localStorage.removeItem(dateKey);

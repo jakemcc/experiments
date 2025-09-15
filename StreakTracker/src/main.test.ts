@@ -25,6 +25,27 @@ test('clicking a day saves and restores its state', () => {
   expect(cell2.classList.contains('red')).toBe(true);
 });
 
+test('third click sets day to blue and persists state', () => {
+  document.body.innerHTML = '<div id="calendars"></div>';
+  localStorage.clear();
+  setup();
+  const cell = Array.from(document.querySelectorAll('.day')).find(
+    (c) => c.textContent === '1'
+  ) as HTMLElement;
+  cell.click();
+  cell.click();
+  cell.click();
+  const now = new Date();
+  const key = `${now.getFullYear()}-${now.getMonth() + 1}-1`;
+  expect(localStorage.getItem(key)).toBe('3');
+  document.body.innerHTML = '<div id="calendars"></div>';
+  setup();
+  const cell2 = Array.from(document.querySelectorAll('.day')).find(
+    (c) => c.textContent === '1'
+  ) as HTMLElement;
+  expect(cell2.classList.contains('blue')).toBe(true);
+});
+
 test('renders previous months below current month', () => {
   document.body.innerHTML = '<div id="calendars"></div>';
   localStorage.clear();
