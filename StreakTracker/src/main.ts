@@ -63,22 +63,71 @@ export function setup() {
       ) {
         daysPassed = daysInMonth;
       }
-      let greenDays = 0;
-      let longestStreak = 0;
-      let currentStreak = 0;
+      const colorCounts = {
+        red: 0,
+        green: 0,
+        blue: 0,
+      };
+      const currentStreaks = {
+        red: 0,
+        green: 0,
+        blue: 0,
+      };
+      const longestStreaks = {
+        red: 0,
+        green: 0,
+        blue: 0,
+      };
+      let currentGreenBlueStreak = 0;
+      let longestGreenBlueStreak = 0;
       for (let day = 1; day <= daysPassed; day++) {
         const state = Number(localStorage.getItem(`${year}-${month}-${day}`));
-        if (state === 2) {
-          greenDays++;
-          currentStreak++;
-          if (currentStreak > longestStreak) {
-            longestStreak = currentStreak;
+        if (state === 1) {
+          colorCounts.red++;
+          currentStreaks.red++;
+          currentStreaks.green = 0;
+          currentStreaks.blue = 0;
+          currentGreenBlueStreak = 0;
+          if (currentStreaks.red > longestStreaks.red) {
+            longestStreaks.red = currentStreaks.red;
+          }
+        } else if (state === 2) {
+          colorCounts.green++;
+          currentStreaks.green++;
+          currentStreaks.red = 0;
+          currentStreaks.blue = 0;
+          currentGreenBlueStreak++;
+          if (currentGreenBlueStreak > longestGreenBlueStreak) {
+            longestGreenBlueStreak = currentGreenBlueStreak;
+          }
+          if (currentStreaks.green > longestStreaks.green) {
+            longestStreaks.green = currentStreaks.green;
+          }
+        } else if (state === 3) {
+          colorCounts.blue++;
+          currentStreaks.blue++;
+          currentStreaks.red = 0;
+          currentStreaks.green = 0;
+          currentGreenBlueStreak++;
+          if (currentGreenBlueStreak > longestGreenBlueStreak) {
+            longestGreenBlueStreak = currentGreenBlueStreak;
+          }
+          if (currentStreaks.blue > longestStreaks.blue) {
+            longestStreaks.blue = currentStreaks.blue;
           }
         } else {
-          currentStreak = 0;
+          currentStreaks.red = 0;
+          currentStreaks.green = 0;
+          currentStreaks.blue = 0;
+          currentGreenBlueStreak = 0;
         }
       }
-      stats.textContent = `Green days: ${greenDays}/${daysPassed}, Longest green streak: ${longestStreak}`;
+      stats.innerHTML = [
+        `Green days: ${colorCounts.green}/${daysPassed}, Longest green streak: ${longestStreaks.green}`,
+        `Red days: ${colorCounts.red}/${daysPassed}, Longest red streak: ${longestStreaks.red}`,
+        `Blue days: ${colorCounts.blue}/${daysPassed}, Longest blue streak: ${longestStreaks.blue}`,
+        `Longest green or blue streak: ${longestGreenBlueStreak}`,
+      ].join('<br>');
     };
     const cells = generateCalendar(year, month - 1);
     cells.forEach((value) => {
