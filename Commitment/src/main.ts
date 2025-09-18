@@ -99,19 +99,29 @@ export function setup() {
 
   const recordSuccess = (firstSetAt: number) => {
     const successes = JSON.parse(localStorage.getItem(HELD_SUCCESS_KEY) || '[]');
+    const failures = JSON.parse(localStorage.getItem(HELD_FAILURE_KEY) || '[]');
     const dateStr = getDateKey(new Date(firstSetAt));
     if (!successes.includes(dateStr)) {
       successes.push(dateStr);
       localStorage.setItem(HELD_SUCCESS_KEY, JSON.stringify(successes));
     }
+    if (failures.includes(dateStr)) {
+      const nextFailures = failures.filter((date: string) => date !== dateStr);
+      localStorage.setItem(HELD_FAILURE_KEY, JSON.stringify(nextFailures));
+    }
   };
 
   const recordFailure = (firstSetAt: number) => {
+    const successes = JSON.parse(localStorage.getItem(HELD_SUCCESS_KEY) || '[]');
     const failures = JSON.parse(localStorage.getItem(HELD_FAILURE_KEY) || '[]');
     const dateStr = getDateKey(new Date(firstSetAt));
     if (!failures.includes(dateStr)) {
       failures.push(dateStr);
       localStorage.setItem(HELD_FAILURE_KEY, JSON.stringify(failures));
+    }
+    if (successes.includes(dateStr)) {
+      const nextSuccesses = successes.filter((date: string) => date !== dateStr);
+      localStorage.setItem(HELD_SUCCESS_KEY, JSON.stringify(nextSuccesses));
     }
   };
 
