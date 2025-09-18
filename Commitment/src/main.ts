@@ -282,11 +282,31 @@ export function setup() {
   }
 }
 
+function registerServiceWorker() {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return;
+  }
+  if (!('serviceWorker' in navigator)) {
+    return;
+  }
+
+  window.addEventListener('load', () => {
+    const swUrl = new URL('service-worker.js', window.location.href);
+    navigator.serviceWorker
+      ?.register(swUrl.toString())
+      .catch((error) => {
+        console.error('Service worker registration failed:', error);
+      });
+  });
+}
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', setup);
 } else {
   setup();
 }
+
+registerServiceWorker();
 
 export { isSameDay }; // for testing
 
