@@ -1,3 +1,10 @@
+const DB_NAME = 'streak-tracker';
+const DB_VERSION = 1;
+const STORE_NAME = 'dayStates';
+const DATE_KEY_PATTERN = /^\d{4}-\d{1,2}-\d{1,2}$/;
+
+let dbPromise: Promise<IDBDatabase> | null = null;
+
 export function generateCalendar(year: number, month: number): (number | null)[] {
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -8,23 +15,190 @@ export function generateCalendar(year: number, month: number): (number | null)[]
   return cells;
 }
 
-function getStoredMonths(now: Date): { year: number; month: number }[] {
-  const months = new Set<string>();
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && /^\d{4}-\d{1,2}-\d{1,2}$/.test(key)) {
-      const [y, m] = key.split('-').map(Number);
-      months.add(`${y}-${m}`);
-    }
+async function requestPersistentStorage(): Promise<void> {
+  if (typeof navigator === 'undefined' || !navigator.storage?.persist) {
+    return;
   }
-  months.add(`${now.getFullYear()}-${now.getMonth() + 1}`);
-  return Array.from(months).map((str) => {
-    const [y, m] = str.split('-').map(Number);
-    return { year: y, month: m };
+  try {
+    await navigator.storage.persist();
+  } catch (error) {
+    console.warn('Persistent storage request failed:', error);
+  }
+}
+
+function openDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB is not available'));
+      return;
+    }
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      db.onversionchange = () => {
+        db.close();
+      };
+      resolve(db);
+    };
+    request.onerror = () => {
+      reject(request.error ?? new Error('Failed to open database'));
+    };
   });
 }
 
-export function setup() {
+function getDb(): Promise<IDBDatabase> {
+  if (!dbPromise) {
+    dbPromise = openDatabase();
+  }
+  return dbPromise;
+}
+
+async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
+  const entries: { key: string; state: number }[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key || !DATE_KEY_PATTERN.test(key)) {
+      continue;
+    }
+    const value = localStorage.getItem(key);
+    const state = Number(value);
+    if (!Number.isFinite(state) || state <= 0) {
+      continue;
+    }
+    entries.push({ key, state });
+  }
+
+  if (entries.length === 0) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    for (const entry of entries) {
+      store.put(entry.state, entry.key);
+    }
+    tx.oncomplete = () => {
+      for (const entry of entries) {
+        localStorage.removeItem(entry.key);
+      }
+      resolve();
+    };
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Migration aborted'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Migration failed'));
+    };
+  });
+}
+
+async function getAllDayStates(db: IDBDatabase): Promise<Map<string, number>> {
+  const states = new Map<string, number>();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.openCursor();
+    request.onerror = () => {
+      reject(request.error ?? new Error('Failed to read state'));
+    };
+    request.onsuccess = (event) => {
+      const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+      if (cursor) {
+        if (typeof cursor.value === 'number') {
+          states.set(cursor.key as string, cursor.value);
+        }
+        cursor.continue();
+      }
+    };
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Failed to read state'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Failed to read state'));
+    };
+  });
+  return states;
+}
+
+async function setDayState(db: IDBDatabase, key: string, state: number): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    store.put(state, key);
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Failed to save state'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Failed to save state'));
+    };
+  });
+}
+
+async function removeDayState(db: IDBDatabase, key: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    store.delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Failed to remove state'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Failed to remove state'));
+    };
+  });
+}
+
+function getStoredMonths(
+  now: Date,
+  stateMap: Map<string, number>,
+): { year: number; month: number }[] {
+  const months = new Set<string>();
+  stateMap.forEach((_, key) => {
+    const [yearStr, monthStr] = key.split('-');
+    const year = Number(yearStr);
+    const month = Number(monthStr);
+    if (!Number.isNaN(year) && !Number.isNaN(month)) {
+      months.add(`${year}-${month}`);
+    }
+  });
+  months.add(`${now.getFullYear()}-${now.getMonth() + 1}`);
+  return Array.from(months).map((str) => {
+    const [yearStr, monthStr] = str.split('-');
+    return { year: Number(yearStr), month: Number(monthStr) };
+  });
+}
+
+export async function clearAllStoredDaysForTests(): Promise<void> {
+  const db = await getDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.clear();
+    request.onerror = () => {
+      reject(request.error ?? new Error('Failed to clear store'));
+    };
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Failed to clear store'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Failed to clear store'));
+    };
+  });
+}
+
+export async function setup(): Promise<void> {
+  void requestPersistentStorage();
   const container = document.getElementById('calendars');
   if (!container) {
     return;
@@ -32,7 +206,10 @@ export function setup() {
   container.innerHTML = '';
 
   const now = new Date();
-  const months = getStoredMonths(now).sort((a, b) => {
+  const db = await getDb();
+  await migrateFromLocalStorage(db);
+  const stateMap = await getAllDayStates(db);
+  const months = getStoredMonths(now, stateMap).sort((a, b) => {
     if (a.year === b.year) {
       return b.month - a.month;
     }
@@ -52,6 +229,18 @@ export function setup() {
     calendar.className = 'calendar';
     const stats = document.createElement('p');
     stats.className = 'stats';
+
+    const monthState = new Map<number, number>();
+    stateMap.forEach((state, key) => {
+      const [yStr, mStr, dStr] = key.split('-');
+      const y = Number(yStr);
+      const m = Number(mStr);
+      const d = Number(dStr);
+      if (y === year && m === month && !Number.isNaN(d)) {
+        monthState.set(d, state);
+      }
+    });
+
     const updateStats = () => {
       const daysInMonth = new Date(year, month, 0).getDate();
       let daysPassed = 0;
@@ -81,7 +270,7 @@ export function setup() {
       let currentGreenBlueStreak = 0;
       let longestGreenBlueStreak = 0;
       for (let day = 1; day <= daysPassed; day++) {
-        const state = Number(localStorage.getItem(`${year}-${month}-${day}`));
+        const state = monthState.get(day) ?? 0;
         if (state === 1) {
           colorCounts.red++;
           currentStreaks.red++;
@@ -129,6 +318,7 @@ export function setup() {
         `Longest green or blue streak: ${longestGreenBlueStreak}`,
       ].join('<br>');
     };
+
     const cells = generateCalendar(year, month - 1);
     cells.forEach((value) => {
       const cell = document.createElement('div');
@@ -136,7 +326,7 @@ export function setup() {
       if (value !== null) {
         cell.textContent = String(value);
         const dateKey = `${year}-${month}-${value}`;
-        let state = Number(localStorage.getItem(dateKey)) || 0;
+        let state = monthState.get(value) ?? 0;
         const applyState = (s: number) => {
           cell.classList.remove('red', 'green', 'blue');
           if (s === 1) {
@@ -148,13 +338,25 @@ export function setup() {
           }
         };
         applyState(state);
-        cell.addEventListener('click', () => {
+        cell.addEventListener('click', async () => {
           state = (state + 1) % 4;
           applyState(state);
           if (state === 0) {
-            localStorage.removeItem(dateKey);
+            monthState.delete(value);
+            stateMap.delete(dateKey);
+            try {
+              await removeDayState(db, dateKey);
+            } catch (error) {
+              console.error('Failed to remove day state', error);
+            }
           } else {
-            localStorage.setItem(dateKey, String(state));
+            monthState.set(value, state);
+            stateMap.set(dateKey, state);
+            try {
+              await setDayState(db, dateKey, state);
+            } catch (error) {
+              console.error('Failed to save day state', error);
+            }
           }
           updateStats();
         });
@@ -187,9 +389,11 @@ function registerServiceWorker() {
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', setup);
+  document.addEventListener('DOMContentLoaded', () => {
+    void setup();
+  });
 } else {
-  setup();
+  void setup();
 }
 
 registerServiceWorker();

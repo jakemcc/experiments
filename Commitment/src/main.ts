@@ -9,6 +9,194 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const ADMIN_OFFSET_KEY = 'adminDayOffset';
 const DAY_CUTOFF_HOUR = 4;
 
+const DB_NAME = 'commitment-app';
+const DB_VERSION = 1;
+const STORE_NAME = 'settings';
+const STORAGE_KEYS = [
+  COMMIT_KEY,
+  COMMIT_TIME_KEY,
+  HELD_KEY,
+  HELD_SUCCESS_KEY,
+  HELD_FAILURE_KEY,
+  ADMIN_OFFSET_KEY,
+];
+
+let dbPromise: Promise<IDBDatabase> | null = null;
+const storageCache = new Map<string, string>();
+let storageLoaded = false;
+
+async function requestPersistentStorage(): Promise<void> {
+  if (typeof navigator === 'undefined' || !navigator.storage?.persist) {
+    return;
+  }
+  try {
+    await navigator.storage.persist();
+  } catch (error) {
+    console.warn('Persistent storage request failed:', error);
+  }
+}
+
+function openDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB is not available'));
+      return;
+    }
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      db.onversionchange = () => {
+        db.close();
+      };
+      resolve(db);
+    };
+    request.onerror = () => {
+      reject(request.error ?? new Error('Failed to open database'));
+    };
+  });
+}
+
+function getDb(): Promise<IDBDatabase> {
+  if (!dbPromise) {
+    dbPromise = openDatabase();
+  }
+  return dbPromise;
+}
+
+async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
+  const entries: { key: string; value: string }[] = [];
+  for (const key of STORAGE_KEYS) {
+    const value = localStorage.getItem(key);
+    if (value !== null) {
+      entries.push({ key, value });
+    }
+  }
+  if (entries.length === 0) {
+    return;
+  }
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    for (const entry of entries) {
+      store.put(entry.value, entry.key);
+    }
+    tx.oncomplete = () => {
+      for (const entry of entries) {
+        localStorage.removeItem(entry.key);
+      }
+      resolve();
+    };
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Migration aborted'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Migration failed'));
+    };
+  });
+}
+
+async function readAllValues(db: IDBDatabase): Promise<Map<string, string>> {
+  const values = new Map<string, string>();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.openCursor();
+    request.onerror = () => {
+      reject(request.error ?? new Error('Failed to read values'));
+    };
+    request.onsuccess = (event) => {
+      const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+      if (cursor) {
+        if (typeof cursor.value === 'string') {
+          values.set(cursor.key as string, cursor.value);
+        }
+        cursor.continue();
+      }
+    };
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Failed to read values'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Failed to read values'));
+    };
+  });
+  return values;
+}
+
+async function loadStorageCache(): Promise<void> {
+  const db = await getDb();
+  await migrateFromLocalStorage(db);
+  const values = await readAllValues(db);
+  storageCache.clear();
+  values.forEach((value, key) => {
+    storageCache.set(key, value);
+  });
+  storageLoaded = true;
+}
+
+async function ensureStorageLoaded(): Promise<void> {
+  if (!storageLoaded) {
+    await loadStorageCache();
+  }
+}
+
+function getStoredValue(key: string): string | null {
+  return storageCache.has(key) ? storageCache.get(key)! : null;
+}
+
+async function setStoredValue(key: string, value: string | null): Promise<void> {
+  await ensureStorageLoaded();
+  if (value === null) {
+    storageCache.delete(key);
+  } else {
+    storageCache.set(key, value);
+  }
+  const db = await getDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const request = value === null ? store.delete(key) : store.put(value, key);
+    request.onerror = () => {
+      reject(request.error ?? new Error('Failed to persist value'));
+    };
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Failed to persist value'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Failed to persist value'));
+    };
+  });
+}
+
+async function clearAllStoredValues(): Promise<void> {
+  const db = await getDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.clear();
+    request.onerror = () => {
+      reject(request.error ?? new Error('Failed to clear storage'));
+    };
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Failed to clear storage'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Failed to clear storage'));
+    };
+  });
+  storageCache.clear();
+  storageLoaded = false;
+}
+
 function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() &&
     a.getMonth() === b.getMonth() &&
@@ -16,7 +204,12 @@ function isSameDay(a: Date, b: Date): boolean {
 }
 
 function getOffset(): number {
-  return parseInt(localStorage.getItem(ADMIN_OFFSET_KEY) || '0', 10);
+  const raw = getStoredValue(ADMIN_OFFSET_KEY);
+  if (!raw) {
+    return 0;
+  }
+  const offset = parseInt(raw, 10);
+  return Number.isNaN(offset) ? 0 : offset;
 }
 
 function currentTime(): number {
@@ -40,7 +233,9 @@ function getDateKey(date: Date): string {
 }
 
 function scheduleLock(firstSetAt: number, inputs: HTMLInputElement[]) {
-  const disableInputs = () => inputs.forEach(r => r.disabled = true);
+  const disableInputs = () => inputs.forEach((r) => {
+    r.disabled = true;
+  });
   const remaining = LOCK_DURATION_MS - (currentTime() - firstSetAt);
   if (remaining <= 0) {
     disableInputs();
@@ -79,11 +274,15 @@ function renderSuccesses(container: HTMLElement, successes: string[], failures: 
   }
 }
 
-export function setup() {
+export async function setup(): Promise<void> {
+  void requestPersistentStorage();
   const params = new URLSearchParams(window.location.search);
   const isAdmin = params.get('admin') === 'true';
+
+  await loadStorageCache();
+
   if (!isAdmin) {
-    localStorage.removeItem(ADMIN_OFFSET_KEY);
+    await setStoredValue(ADMIN_OFFSET_KEY, null);
   }
 
   const commitYes = document.getElementById('commit-yes') as HTMLInputElement;
@@ -97,44 +296,46 @@ export function setup() {
     return;
   }
 
-  const recordSuccess = (firstSetAt: number) => {
-    const successes = JSON.parse(localStorage.getItem(HELD_SUCCESS_KEY) || '[]');
-    const failures = JSON.parse(localStorage.getItem(HELD_FAILURE_KEY) || '[]');
+  const recordSuccess = async (firstSetAt: number) => {
+    const successes = JSON.parse(getStoredValue(HELD_SUCCESS_KEY) || '[]');
+    const failures = JSON.parse(getStoredValue(HELD_FAILURE_KEY) || '[]');
     const dateStr = getDateKey(new Date(firstSetAt));
     if (!successes.includes(dateStr)) {
       successes.push(dateStr);
-      localStorage.setItem(HELD_SUCCESS_KEY, JSON.stringify(successes));
+      await setStoredValue(HELD_SUCCESS_KEY, JSON.stringify(successes));
     }
     if (failures.includes(dateStr)) {
       const nextFailures = failures.filter((date: string) => date !== dateStr);
-      localStorage.setItem(HELD_FAILURE_KEY, JSON.stringify(nextFailures));
+      await setStoredValue(HELD_FAILURE_KEY, JSON.stringify(nextFailures));
     }
   };
 
-  const recordFailure = (firstSetAt: number) => {
-    const successes = JSON.parse(localStorage.getItem(HELD_SUCCESS_KEY) || '[]');
-    const failures = JSON.parse(localStorage.getItem(HELD_FAILURE_KEY) || '[]');
+  const recordFailure = async (firstSetAt: number) => {
+    const successes = JSON.parse(getStoredValue(HELD_SUCCESS_KEY) || '[]');
+    const failures = JSON.parse(getStoredValue(HELD_FAILURE_KEY) || '[]');
     const dateStr = getDateKey(new Date(firstSetAt));
     if (!failures.includes(dateStr)) {
       failures.push(dateStr);
-      localStorage.setItem(HELD_FAILURE_KEY, JSON.stringify(failures));
+      await setStoredValue(HELD_FAILURE_KEY, JSON.stringify(failures));
     }
     if (successes.includes(dateStr)) {
       const nextSuccesses = successes.filter((date: string) => date !== dateStr);
-      localStorage.setItem(HELD_SUCCESS_KEY, JSON.stringify(nextSuccesses));
+      await setStoredValue(HELD_SUCCESS_KEY, JSON.stringify(nextSuccesses));
     }
   };
 
-  const resetSelections = () => {
+  const resetSelections = async () => {
     commitYes.checked = false;
     commitNo.checked = false;
     heldYes.checked = false;
     heldNo.checked = false;
     commitYes.disabled = false;
     commitNo.disabled = false;
-    localStorage.removeItem(COMMIT_KEY);
-    localStorage.removeItem(COMMIT_TIME_KEY);
-    localStorage.removeItem(HELD_KEY);
+    await Promise.all([
+      setStoredValue(COMMIT_KEY, null),
+      setStoredValue(COMMIT_TIME_KEY, null),
+      setStoredValue(HELD_KEY, null),
+    ]);
     if (heldPrompt) {
       heldPrompt.textContent = '';
       heldPrompt.hidden = true;
@@ -143,15 +344,14 @@ export function setup() {
 
   let awaitingHeld = false;
 
-  // daily reset for commit
-  const firstSetRaw = localStorage.getItem(COMMIT_TIME_KEY);
+  const firstSetRaw = getStoredValue(COMMIT_TIME_KEY);
   if (firstSetRaw) {
     const firstSetAt = parseInt(firstSetRaw, 10);
     const firstDate = new Date(firstSetAt);
     const now = currentDate();
     const diffDays = getAppDay(now) - getAppDay(firstDate);
     if (diffDays === 1) {
-      const held = localStorage.getItem(HELD_KEY);
+      const held = getStoredValue(HELD_KEY);
       if (held === null) {
         awaitingHeld = true;
         if (heldPrompt) {
@@ -160,30 +360,32 @@ export function setup() {
         }
       } else {
         if (held === 'true') {
-          recordSuccess(firstSetAt);
+          await recordSuccess(firstSetAt);
         } else if (held === 'false') {
-          recordFailure(firstSetAt);
+          await recordFailure(firstSetAt);
         }
-        resetSelections();
+        await resetSelections();
       }
     } else if (diffDays > 1) {
       alert('It has been a while since your last visit. Please open the app more often.');
-      resetSelections();
+      await resetSelections();
     }
   }
 
-  const savedCommit = localStorage.getItem(COMMIT_KEY);
+  const savedCommit = getStoredValue(COMMIT_KEY);
   if (savedCommit !== null) {
     if (savedCommit === 'true') {
       commitYes.checked = true;
     } else {
       commitNo.checked = true;
     }
-    const firstSetAt = parseInt(localStorage.getItem(COMMIT_TIME_KEY) || '0', 10);
-    scheduleLock(firstSetAt, [commitYes, commitNo]);
+    const firstSetAt = parseInt(getStoredValue(COMMIT_TIME_KEY) || '0', 10);
+    if (firstSetAt) {
+      scheduleLock(firstSetAt, [commitYes, commitNo]);
+    }
   }
 
-  const savedHeld = localStorage.getItem(HELD_KEY);
+  const savedHeld = getStoredValue(HELD_KEY);
   if (savedHeld !== null) {
     if (savedHeld === 'true') {
       heldYes.checked = true;
@@ -193,12 +395,13 @@ export function setup() {
   }
 
   if (successContainer) {
-    const successes = JSON.parse(localStorage.getItem(HELD_SUCCESS_KEY) || '[]');
-    const failures = JSON.parse(localStorage.getItem(HELD_FAILURE_KEY) || '[]');
+    const successes = JSON.parse(getStoredValue(HELD_SUCCESS_KEY) || '[]');
+    const failures = JSON.parse(getStoredValue(HELD_FAILURE_KEY) || '[]');
+    successContainer.innerHTML = '';
     renderSuccesses(successContainer, successes, failures);
   }
 
-  const handleCommitChange = (ev: Event) => {
+  const handleCommitChange = async (ev: Event) => {
     const target = ev.target as HTMLInputElement;
     if (target === commitYes && commitYes.checked) {
       commitNo.checked = false;
@@ -207,25 +410,29 @@ export function setup() {
     }
 
     if (commitYes.checked) {
-      localStorage.setItem(COMMIT_KEY, 'true');
+      await setStoredValue(COMMIT_KEY, 'true');
     } else if (commitNo.checked) {
-      localStorage.setItem(COMMIT_KEY, 'false');
+      await setStoredValue(COMMIT_KEY, 'false');
     } else {
-      localStorage.removeItem(COMMIT_KEY);
+      await setStoredValue(COMMIT_KEY, null);
     }
 
-    let firstSetAt = parseInt(localStorage.getItem(COMMIT_TIME_KEY) || '0', 10);
+    let firstSetAt = parseInt(getStoredValue(COMMIT_TIME_KEY) || '0', 10);
     if (!firstSetAt && (commitYes.checked || commitNo.checked)) {
       firstSetAt = currentTime();
-      localStorage.setItem(COMMIT_TIME_KEY, String(firstSetAt));
+      await setStoredValue(COMMIT_TIME_KEY, String(firstSetAt));
       scheduleLock(firstSetAt, [commitYes, commitNo]);
     }
   };
 
-  commitYes.addEventListener('change', handleCommitChange);
-  commitNo.addEventListener('change', handleCommitChange);
+  commitYes.addEventListener('change', (event) => {
+    void handleCommitChange(event);
+  });
+  commitNo.addEventListener('change', (event) => {
+    void handleCommitChange(event);
+  });
 
-  const handleHeldChange = (ev: Event) => {
+  const handleHeldChange = async (ev: Event) => {
     const target = ev.target as HTMLInputElement;
     if (target === heldYes && heldYes.checked) {
       heldNo.checked = false;
@@ -234,54 +441,59 @@ export function setup() {
     }
 
     if (heldYes.checked) {
-      localStorage.setItem(HELD_KEY, 'true');
+      await setStoredValue(HELD_KEY, 'true');
     } else if (heldNo.checked) {
-      localStorage.setItem(HELD_KEY, 'false');
+      await setStoredValue(HELD_KEY, 'false');
     } else {
-      localStorage.removeItem(HELD_KEY);
+      await setStoredValue(HELD_KEY, null);
     }
 
     if (awaitingHeld) {
-      const firstSetAt = parseInt(localStorage.getItem(COMMIT_TIME_KEY) || '0', 10);
+      const firstSetAt = parseInt(getStoredValue(COMMIT_TIME_KEY) || '0', 10);
       if (heldYes.checked) {
-        recordSuccess(firstSetAt);
+        await recordSuccess(firstSetAt);
       } else if (heldNo.checked) {
-        recordFailure(firstSetAt);
+        await recordFailure(firstSetAt);
       }
-      resetSelections();
+      await resetSelections();
       awaitingHeld = false;
       if (successContainer) {
         successContainer.innerHTML = '';
-        const successes = JSON.parse(localStorage.getItem(HELD_SUCCESS_KEY) || '[]');
-        const failures = JSON.parse(localStorage.getItem(HELD_FAILURE_KEY) || '[]');
+        const successes = JSON.parse(getStoredValue(HELD_SUCCESS_KEY) || '[]');
+        const failures = JSON.parse(getStoredValue(HELD_FAILURE_KEY) || '[]');
         renderSuccesses(successContainer, successes, failures);
       }
     }
   };
 
-  heldYes.addEventListener('change', handleHeldChange);
-  heldNo.addEventListener('change', handleHeldChange);
+  heldYes.addEventListener('change', (event) => {
+    void handleHeldChange(event);
+  });
+  heldNo.addEventListener('change', (event) => {
+    void handleHeldChange(event);
+  });
 
   if (isAdmin) {
     const adminDiv = document.createElement('div');
     const nextBtn = document.createElement('button');
     nextBtn.id = 'admin-next-day';
     nextBtn.textContent = 'Next Day';
-    nextBtn.addEventListener('click', () => {
-      adjustDay(1);
+    nextBtn.addEventListener('click', async () => {
+      await adjustDay(1);
       location.reload();
     });
     const prevBtn = document.createElement('button');
     prevBtn.id = 'admin-prev-day';
     prevBtn.textContent = 'Previous Day';
-    prevBtn.addEventListener('click', () => {
-      adjustDay(-1);
+    prevBtn.addEventListener('click', async () => {
+      await adjustDay(-1);
       location.reload();
     });
     const clearBtn = document.createElement('button');
     clearBtn.id = 'admin-clear-data';
     clearBtn.textContent = 'Clear Data';
-    clearBtn.addEventListener('click', () => {
+    clearBtn.addEventListener('click', async () => {
+      await clearAllStoredValues();
       localStorage.clear();
       location.reload();
     });
@@ -311,16 +523,28 @@ function registerServiceWorker() {
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', setup);
+  document.addEventListener('DOMContentLoaded', () => {
+    void setup();
+  });
 } else {
-  setup();
+  void setup();
 }
 
 registerServiceWorker();
 
-export { isSameDay }; // for testing
+export { isSameDay };
 
-export function adjustDay(days: number) {
+export async function adjustDay(days: number): Promise<void> {
+  await ensureStorageLoaded();
   const offset = getOffset() + days;
-  localStorage.setItem(ADMIN_OFFSET_KEY, String(offset));
+  await setStoredValue(ADMIN_OFFSET_KEY, String(offset));
+}
+
+export async function clearAllStoredDataForTests(): Promise<void> {
+  await clearAllStoredValues();
+}
+
+export async function getStoredValueForTests(key: string): Promise<string | null> {
+  await ensureStorageLoaded();
+  return getStoredValue(key);
 }
