@@ -8,6 +8,8 @@ export function generateCalendar(year: number, month: number): (number | null)[]
   return cells;
 }
 
+type ColorKey = 'red' | 'green' | 'blue';
+
 function getStoredMonths(now: Date): { year: number; month: number }[] {
   const months = new Set<string>();
   for (let i = 0; i < localStorage.length; i++) {
@@ -50,7 +52,7 @@ export function setup() {
 
     const calendar = document.createElement('div');
     calendar.className = 'calendar';
-    const stats = document.createElement('p');
+    const stats = document.createElement('div');
     stats.className = 'stats';
     const updateStats = () => {
       const daysInMonth = new Date(year, month, 0).getDate();
@@ -63,17 +65,17 @@ export function setup() {
       ) {
         daysPassed = daysInMonth;
       }
-      const colorCounts = {
+      const colorCounts: Record<ColorKey, number> = {
         red: 0,
         green: 0,
         blue: 0,
       };
-      const currentStreaks = {
+      const currentStreaks: Record<ColorKey, number> = {
         red: 0,
         green: 0,
         blue: 0,
       };
-      const longestStreaks = {
+      const longestStreaks: Record<ColorKey, number> = {
         red: 0,
         green: 0,
         blue: 0,
@@ -122,12 +124,58 @@ export function setup() {
           currentGreenBlueStreak = 0;
         }
       }
-      stats.innerHTML = [
-        `Green days: ${colorCounts.green}/${daysPassed}, Longest green streak: ${longestStreaks.green}`,
-        `Red days: ${colorCounts.red}/${daysPassed}, Longest red streak: ${longestStreaks.red}`,
-        `Blue days: ${colorCounts.blue}/${daysPassed}, Longest blue streak: ${longestStreaks.blue}`,
-        `Longest green or blue streak: ${longestGreenBlueStreak}`,
-      ].join('<br>');
+      stats.innerHTML = '';
+      const colorOrder: ColorKey[] = ['green', 'red', 'blue'];
+      colorOrder.forEach((color) => {
+        const row = document.createElement('div');
+        row.className = 'stat-row';
+        row.dataset.color = color;
+
+        const swatch = document.createElement('span');
+        swatch.className = `stat-swatch ${color}`;
+        swatch.setAttribute('aria-hidden', 'true');
+        row.appendChild(swatch);
+
+        const srOnly = document.createElement('span');
+        srOnly.className = 'sr-only';
+        srOnly.textContent = `${color.charAt(0).toUpperCase()}${color.slice(1)} `;
+        row.appendChild(srOnly);
+
+        const text = document.createElement('span');
+        text.className = 'stat-text';
+        text.textContent = `Days: ${colorCounts[color]}/${daysPassed}, Longest streak: ${longestStreaks[color]}`;
+        row.appendChild(text);
+
+        stats.appendChild(row);
+      });
+
+      const combinedRow = document.createElement('div');
+      combinedRow.className = 'stat-row';
+      combinedRow.dataset.combination = 'green-blue';
+
+      const swatchGroup = document.createElement('span');
+      swatchGroup.className = 'stat-swatch-group';
+
+      (['green', 'blue'] as ColorKey[]).forEach((color) => {
+        const swatch = document.createElement('span');
+        swatch.className = `stat-swatch ${color}`;
+        swatch.setAttribute('aria-hidden', 'true');
+        swatchGroup.appendChild(swatch);
+      });
+
+      combinedRow.appendChild(swatchGroup);
+
+      const combinedSrOnly = document.createElement('span');
+      combinedSrOnly.className = 'sr-only';
+      combinedSrOnly.textContent = 'Green or blue ';
+      combinedRow.appendChild(combinedSrOnly);
+
+      const combinedText = document.createElement('span');
+      combinedText.className = 'stat-text';
+      combinedText.textContent = `Longest combined streak: ${longestGreenBlueStreak}`;
+      combinedRow.appendChild(combinedText);
+
+      stats.appendChild(combinedRow);
     };
     const cells = generateCalendar(year, month - 1);
     cells.forEach((value) => {

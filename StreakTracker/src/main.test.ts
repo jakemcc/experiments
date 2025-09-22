@@ -78,39 +78,59 @@ test('stats update for all colors and streaks', () => {
   localStorage.clear();
   setup();
   const stats = document.querySelector('.stats') as HTMLElement;
-  const expectStats = (lines: string[]) => {
-    expect(stats.innerHTML).toBe(lines.join('<br>'));
+  const getColorRowText = (color: string) =>
+    (stats.querySelector(`.stat-row[data-color="${color}"] .stat-text`) as HTMLElement)
+      .textContent;
+  const getCombinedText = () =>
+    (stats.querySelector(
+      '.stat-row[data-combination="green-blue"] .stat-text'
+    ) as HTMLElement).textContent;
+  const expectStats = (expected: {
+    green: string;
+    red: string;
+    blue: string;
+    combined: string;
+  }) => {
+    expect(getColorRowText('green')).toBe(expected.green);
+    expect(getColorRowText('red')).toBe(expected.red);
+    expect(getColorRowText('blue')).toBe(expected.blue);
+    expect(getCombinedText()).toBe(expected.combined);
   };
-  expectStats([
-    'Green days: 0/15, Longest green streak: 0',
-    'Red days: 0/15, Longest red streak: 0',
-    'Blue days: 0/15, Longest blue streak: 0',
-    'Longest green or blue streak: 0',
-  ]);
+  expect(stats.querySelectorAll('.stat-row').length).toBe(4);
+  expect(stats.querySelectorAll('.stat-swatch').length).toBe(5);
+  expect(
+    stats.querySelectorAll('.stat-row[data-combination="green-blue"] .stat-swatch').length
+  ).toBe(2);
+  expectStats({
+    green: 'Days: 0/15, Longest streak: 0',
+    red: 'Days: 0/15, Longest streak: 0',
+    blue: 'Days: 0/15, Longest streak: 0',
+    combined: 'Longest combined streak: 0',
+  });
   const day1 = Array.from(document.querySelectorAll('.day')).find(
     (c) => c.textContent === '1'
   ) as HTMLElement;
   day1.click();
-  expectStats([
-    'Green days: 0/15, Longest green streak: 0',
-    'Red days: 1/15, Longest red streak: 1',
-    'Blue days: 0/15, Longest blue streak: 0',
-    'Longest green or blue streak: 0',
-  ]);
+  expectStats({
+    green: 'Days: 0/15, Longest streak: 0',
+    red: 'Days: 1/15, Longest streak: 1',
+    blue: 'Days: 0/15, Longest streak: 0',
+    combined: 'Longest combined streak: 0',
+  });
   day1.click();
-  expectStats([
-    'Green days: 1/15, Longest green streak: 1',
-    'Red days: 0/15, Longest red streak: 0',
-    'Blue days: 0/15, Longest blue streak: 0',
-    'Longest green or blue streak: 1',
-  ]);
+  expectStats({
+    green: 'Days: 1/15, Longest streak: 1',
+    red: 'Days: 0/15, Longest streak: 0',
+    blue: 'Days: 0/15, Longest streak: 0',
+    combined: 'Longest combined streak: 1',
+  });
   day1.click();
-  expectStats([
-    'Green days: 0/15, Longest green streak: 0',
-    'Red days: 0/15, Longest red streak: 0',
-    'Blue days: 1/15, Longest blue streak: 1',
-    'Longest green or blue streak: 1',
-  ]);
+  expectStats({
+    green: 'Days: 0/15, Longest streak: 0',
+    red: 'Days: 0/15, Longest streak: 0',
+    blue: 'Days: 1/15, Longest streak: 1',
+    combined: 'Longest combined streak: 1',
+  });
   jest.useRealTimers();
 });
 
@@ -150,13 +170,16 @@ test('longest green or blue streak spans both colors', () => {
   setState(getCell('2'), 2);
   setState(getCell('3'), 3);
   setState(getCell('4'), 2);
-  expect(stats.innerHTML).toBe(
-    [
-      'Green days: 3/15, Longest green streak: 2',
-      'Red days: 0/15, Longest red streak: 0',
-      'Blue days: 1/15, Longest blue streak: 1',
-      'Longest green or blue streak: 4',
-    ].join('<br>')
-  );
+  const getColorRowText = (color: string) =>
+    (stats.querySelector(`.stat-row[data-color="${color}"] .stat-text`) as HTMLElement)
+      .textContent;
+  const getCombinedText = () =>
+    (stats.querySelector(
+      '.stat-row[data-combination="green-blue"] .stat-text'
+    ) as HTMLElement).textContent;
+  expect(getColorRowText('green')).toBe('Days: 3/15, Longest streak: 2');
+  expect(getColorRowText('red')).toBe('Days: 0/15, Longest streak: 0');
+  expect(getColorRowText('blue')).toBe('Days: 1/15, Longest streak: 1');
+  expect(getCombinedText()).toBe('Longest combined streak: 4');
   jest.useRealTimers();
 });
