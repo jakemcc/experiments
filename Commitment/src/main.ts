@@ -228,8 +228,10 @@ function getAppDay(date: Date): number {
 
 function getDateKey(date: Date): string {
   const d = new Date(date.getTime() - DAY_CUTOFF_HOUR * 60 * 60 * 1000);
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().split('T')[0];
+  const year = d.getFullYear();
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function scheduleLock(firstSetAt: number, inputs: HTMLInputElement[]) {
