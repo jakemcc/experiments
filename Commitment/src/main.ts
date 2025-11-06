@@ -25,25 +25,6 @@ let dbPromise: Promise<IDBDatabase> | null = null;
 const storageCache = new Map<string, string>();
 let storageLoaded = false;
 
-const NativeDateConstructor = Date;
-const nativeGetTimezoneOffset = Date.prototype.getTimezoneOffset;
-const nativeGetTimezoneOffsetSource = nativeGetTimezoneOffset.toString();
-
-function getEffectiveTimezoneOffset(date: Date): number {
-  const currentConstructor = Date;
-  const currentMethod = currentConstructor.prototype.getTimezoneOffset;
-  if (currentConstructor !== NativeDateConstructor) {
-    return currentMethod.call(date);
-  }
-  if (currentMethod === nativeGetTimezoneOffset) {
-    return currentMethod.call(date);
-  }
-  if (currentMethod.toString() === nativeGetTimezoneOffsetSource) {
-    return currentMethod.call(date);
-  }
-  return nativeGetTimezoneOffset.call(date);
-}
-
 async function requestPersistentStorage(): Promise<void> {
   if (typeof navigator === 'undefined' || !navigator.storage?.persist) {
     return;
@@ -247,8 +228,7 @@ function getAppDay(date: Date): number {
 
 function getDateKey(date: Date): string {
   const d = new Date(date.getTime() - DAY_CUTOFF_HOUR * 60 * 60 * 1000);
-  const offsetMinutes = getEffectiveTimezoneOffset(d);
-  d.setMinutes(d.getMinutes() - offsetMinutes);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   return d.toISOString().split('T')[0];
 }
 
