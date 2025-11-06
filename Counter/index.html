@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Counter</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #f0f4ff, #d1dcff);
+    }
+
+    main {
+      background: rgba(255, 255, 255, 0.85);
+      border-radius: 16px;
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+      padding: 2.5rem;
+      width: min(90vw, 420px);
+      backdrop-filter: blur(6px);
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 2rem;
+      text-align: center;
+      color: #243377;
+    }
+
+    .counter-display {
+      font-size: 4rem;
+      font-weight: 700;
+      text-align: center;
+      margin: 1.5rem 0;
+      color: #1c2552;
+    }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin-bottom: 2rem;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 0.75rem 1.75rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.3s ease;
+    }
+
+    button:focus-visible {
+      outline: 3px solid #243377;
+      outline-offset: 2px;
+    }
+
+    .increment {
+      background: #4456ff;
+      color: white;
+      box-shadow: 0 10px 18px rgba(68, 86, 255, 0.35);
+    }
+
+    .increment:hover,
+    .increment:active {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 20px rgba(68, 86, 255, 0.4);
+    }
+
+    .reset {
+      background: #ffb347;
+      color: #512b0d;
+      box-shadow: 0 10px 18px rgba(255, 179, 71, 0.35);
+    }
+
+    .reset:hover,
+    .reset:active {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 20px rgba(255, 179, 71, 0.4);
+    }
+
+    section {
+      background: rgba(255, 255, 255, 0.7);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: inset 0 0 0 1px rgba(36, 51, 119, 0.1);
+    }
+
+    section h2 {
+      margin-top: 0;
+      margin-bottom: 1rem;
+      font-size: 1.25rem;
+      color: #243377;
+    }
+
+    #history-list {
+      padding-left: 1.25rem;
+      margin: 0;
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    #history-list li {
+      background: rgba(68, 86, 255, 0.08);
+      border-radius: 999px;
+      padding: 0.5rem 1rem;
+      color: #1c2552;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+    }
+
+    #history-list li span {
+      font-size: 0.85rem;
+      color: rgba(28, 37, 82, 0.75);
+      font-weight: 500;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: rgba(28, 37, 82, 0.7);
+      margin: 0;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Counter</h1>
+    <p class="counter-display" id="counter" aria-live="polite">0</p>
+    <div class="controls">
+      <button type="button" class="increment" id="increment">Increment</button>
+      <button type="button" class="reset" id="reset">Reset</button>
+    </div>
+    <section aria-labelledby="history-title">
+      <h2 id="history-title">History</h2>
+      <p class="empty-state" id="empty-state">No completed counts yet.</p>
+      <ol id="history-list"></ol>
+    </section>
+  </main>
+  <script>
+    const counterDisplay = document.getElementById("counter");
+    const incrementButton = document.getElementById("increment");
+    const resetButton = document.getElementById("reset");
+    const historyList = document.getElementById("history-list");
+    const emptyState = document.getElementById("empty-state");
+
+    let count = 0;
+    let resets = 0;
+
+    const updateDisplay = () => {
+      counterDisplay.textContent = count.toString();
+    };
+
+    const updateEmptyState = () => {
+      if (historyList.children.length === 0) {
+        emptyState.hidden = false;
+      } else {
+        emptyState.hidden = true;
+      }
+    };
+
+    const addHistoryEntry = (value) => {
+      const item = document.createElement("li");
+      resets += 1;
+      const totalLabel = document.createElement("strong");
+      totalLabel.textContent = `#${resets}: ${value}`;
+      const timestamp = document.createElement("span");
+      const formatter = new Intl.DateTimeFormat(undefined, {
+        hour: "numeric",
+        minute: "numeric",
+        second: "numeric",
+      });
+      timestamp.textContent = formatter.format(new Date());
+      item.append(totalLabel, timestamp);
+      historyList.prepend(item);
+      updateEmptyState();
+    };
+
+    incrementButton.addEventListener("click", () => {
+      count += 1;
+      updateDisplay();
+    });
+
+    resetButton.addEventListener("click", () => {
+      if (count === 0) {
+        return;
+      }
+      addHistoryEntry(count);
+      count = 0;
+      updateDisplay();
+    });
+
+    updateDisplay();
+    updateEmptyState();
+  </script>
+</body>
+</html>
