@@ -38,7 +38,8 @@ jobs:
           npm run build
       - name: Prepare site
         run: |
-          mkdir -p site/Commitment site/StreakTracker
+          mkdir -p site/Commitment site/StreakTracker site/Counter
+          cp Counter/* site/Counter
           cp Commitment/index.html site/Commitment/
           cp -r Commitment/dist site/Commitment/
           cp StreakTracker/index.html site/StreakTracker/
