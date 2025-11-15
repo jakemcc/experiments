@@ -226,12 +226,18 @@ function getAppDay(date: Date): number {
   return Math.floor(adjusted.getTime() / DAY_MS);
 }
 
+function getAppDateParts(date: Date): { year: number; month: number; day: number } {
+  const adjusted = new Date(date.getTime() - DAY_CUTOFF_HOUR * 60 * 60 * 1000);
+  return {
+    year: adjusted.getUTCFullYear(),
+    month: adjusted.getUTCMonth() + 1,
+    day: adjusted.getUTCDate(),
+  };
+}
+
 function getDateKey(date: Date): string {
-  const d = new Date(date.getTime() - DAY_CUTOFF_HOUR * 60 * 60 * 1000);
-  const year = d.getFullYear();
-  const month = (d.getMonth() + 1).toString().padStart(2, '0');
-  const day = d.getDate().toString().padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const { year, month, day } = getAppDateParts(date);
+  return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
 }
 
 function scheduleLock(firstSetAt: number, inputs: HTMLInputElement[]) {
@@ -269,7 +275,8 @@ function renderSuccesses(container: HTMLElement, successes: string[], failures: 
 
     const label = document.createElement('div');
     label.className = 'day-date';
-    label.textContent = `${d.getMonth() + 1}/${d.getDate()}`;
+    const dateParts = getAppDateParts(d);
+    label.textContent = `${dateParts.month}/${dateParts.day}`;
     wrapper.appendChild(label);
 
     container.appendChild(wrapper);
