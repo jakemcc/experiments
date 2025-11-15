@@ -134,14 +134,15 @@ test('stats update for all colors and streaks', async () => {
   document.body.innerHTML = '<div id="calendars"></div>';
   await setup();
   const stats = document.querySelector('.stats') as HTMLElement;
+  const daysPassed = new Date().getDate();
   const expectStats = async (lines: string[]) => {
     await waitForCondition(() => stats.innerHTML === lines.join('<br>'));
     expect(stats.innerHTML).toBe(lines.join('<br>'));
   };
   await expectStats([
-    'Green days: 0/15, Longest green streak: 0',
-    'Red days: 0/15, Longest red streak: 0',
-    'Blue days: 0/15, Longest blue streak: 0',
+    `Green days: 0/${daysPassed}, Longest green streak: 0`,
+    `Red days: 0/${daysPassed}, Longest red streak: 0`,
+    `Blue days: 0/${daysPassed}, Longest blue streak: 0`,
     'Longest green or blue streak: 0',
   ]);
   const day1 = Array.from(document.querySelectorAll('.day')).find(
@@ -150,25 +151,25 @@ test('stats update for all colors and streaks', async () => {
   day1.click();
   await flushAsyncOperations();
   await expectStats([
-    'Green days: 0/15, Longest green streak: 0',
-    'Red days: 1/15, Longest red streak: 1',
-    'Blue days: 0/15, Longest blue streak: 0',
+    `Green days: 0/${daysPassed}, Longest green streak: 0`,
+    `Red days: 1/${daysPassed}, Longest red streak: 1`,
+    `Blue days: 0/${daysPassed}, Longest blue streak: 0`,
     'Longest green or blue streak: 0',
   ]);
   day1.click();
   await flushAsyncOperations();
   await expectStats([
-    'Green days: 1/15, Longest green streak: 1',
-    'Red days: 0/15, Longest red streak: 0',
-    'Blue days: 0/15, Longest blue streak: 0',
+    `Green days: 1/${daysPassed}, Longest green streak: 1`,
+    `Red days: 0/${daysPassed}, Longest red streak: 0`,
+    `Blue days: 0/${daysPassed}, Longest blue streak: 0`,
     'Longest green or blue streak: 1',
   ]);
   day1.click();
   await flushAsyncOperations();
   await expectStats([
-    'Green days: 0/15, Longest green streak: 0',
-    'Red days: 0/15, Longest red streak: 0',
-    'Blue days: 1/15, Longest blue streak: 1',
+    `Green days: 0/${daysPassed}, Longest green streak: 0`,
+    `Red days: 0/${daysPassed}, Longest red streak: 0`,
+    `Blue days: 1/${daysPassed}, Longest blue streak: 1`,
     'Longest green or blue streak: 1',
   ]);
   restoreDate();
@@ -179,6 +180,7 @@ test('longest green or blue streak spans both colors', async () => {
   document.body.innerHTML = '<div id="calendars"></div>';
   await setup();
   const stats = document.querySelector('.stats') as HTMLElement;
+  const daysPassed = new Date().getDate();
   const getCell = (day: string) =>
     Array.from(document.querySelectorAll('.day')).find(
       (c) => c.textContent === day
@@ -214,9 +216,9 @@ test('longest green or blue streak spans both colors', async () => {
   await flushAsyncOperations();
   expect(stats.innerHTML).toBe(
     [
-      'Green days: 3/15, Longest green streak: 2',
-      'Red days: 0/15, Longest red streak: 0',
-      'Blue days: 1/15, Longest blue streak: 1',
+      `Green days: 3/${daysPassed}, Longest green streak: 2`,
+      `Red days: 0/${daysPassed}, Longest red streak: 0`,
+      `Blue days: 1/${daysPassed}, Longest blue streak: 1`,
       'Longest green or blue streak: 4',
     ].join('<br>')
   );
