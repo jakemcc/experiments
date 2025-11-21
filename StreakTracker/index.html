@@ -23,13 +23,25 @@
       cursor: pointer;
     }
     .day.red {
-      background-color: red;
+      color: #fff;
+      background-image:
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.5) 0, rgba(255, 255, 255, 0.5) 8px, transparent 8px, transparent 16px),
+        linear-gradient(135deg, #ff4d4f, #c62828);
+      background-size: 24px 24px;
     }
     .day.green {
-      background-color: green;
+      color: #fff;
+      background-image:
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.45) 0, rgba(255, 255, 255, 0.45) 6px, transparent 6px, transparent 14px),
+        linear-gradient(180deg, #43a047, #2e7d32);
+      background-size: 20px 20px;
     }
     .day.blue {
-      background-color: #87cefa;
+      color: #0b2a3d;
+      background-image:
+        radial-gradient(circle at 10px 10px, rgba(255, 255, 255, 0.55) 2px, transparent 3px),
+        linear-gradient(135deg, #87cefa, #4fc3f7);
+      background-size: 18px 18px;
     }
   </style>
 </head>
