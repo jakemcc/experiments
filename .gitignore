@@ -2,3 +2,5 @@ Commitment/dist/
 Commitment/node_modules/
 StreakTracker/dist/
 StreakTracker/node_modules/
+.cpcache
+.cache
