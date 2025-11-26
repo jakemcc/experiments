@@ -42,5 +42,5 @@ prepare-site:
 clean: ## Remove built site artifacts.
 	rm -rf site
 
-server: build ## Serves the output directory
-	cd site && python -m http.server
+server: ## Serves the output directory
+	cd site && python3 -m http.server
