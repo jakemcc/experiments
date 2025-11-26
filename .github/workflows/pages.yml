@@ -26,6 +26,12 @@ jobs:
           cache-dependency-path: |
             Commitment/package-lock.json
             StreakTracker/package-lock.json
+      - uses: DeLaGuardo/setup-clojure@11
+        with:
+          cli: 1.11.1.1413
+      - name: Test packing app
+        working-directory: packing
+        run: clojure -M:test
       - name: Build Commitment app
         working-directory: Commitment
         run: |
@@ -38,12 +44,13 @@ jobs:
           npm run build
       - name: Prepare site
         run: |
-          mkdir -p site/Commitment site/StreakTracker site/Counter
+          mkdir -p site/Commitment site/StreakTracker site/Counter site/Packing
           cp Counter/* site/Counter
           cp Commitment/index.html site/Commitment/
           cp -r Commitment/dist site/Commitment/
           cp StreakTracker/index.html site/StreakTracker/
           cp -r StreakTracker/dist site/StreakTracker/
+          cp -r packing/src/packing/* site/Packing/
           cp index.html site/index.html
       - uses: actions/upload-pages-artifact@v3
         with:
