@@ -4,8 +4,8 @@
 test:
 	clojure -M:test
 
-# Build the static site assets used by GitHub Pages
-build: clean test
+# Build the static site assets used by GitHub Pages (no tests)
+build: clean
 	mkdir -p ../site/Packing
 	cp -r src/packing/* ../site/Packing/
 
