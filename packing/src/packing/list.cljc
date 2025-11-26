@@ -125,7 +125,7 @@
             (mapv #(packing-list' lists % (clojure.set/union seen-types types))
                   new-types)))))
 
-(defn new-state [] {:trip-types #{}})
+(defn new-state [] {:trip-types #{} :checked-items #{}})
 
 #?(:cljs
    (defonce state (r/atom (new-state))))
@@ -139,7 +139,8 @@
        (if (string/blank? hash)
          (new-state)
          (-> (read-string hash)
-             (update :trip-types set))))))
+             (update :trip-types set)
+             (update :checked-items set))))))
 
 #?(:cljs
    (defn set-hash!
@@ -163,6 +164,16 @@
 
 #?(:cljs
    (defn trip-types [] (:trip-types @state)))
+
+#?(:cljs
+   (defn item-key [item] [(:type item) (:value item)]))
+
+#?(:cljs
+   (defn checked? [item] (contains? (:checked-items @state) (item-key item))))
+
+#?(:cljs
+   (defn toggle-item [item]
+     (swap! state update :checked-items toggle-membership (item-key item))))
 
 (defn- k= [k x] (fn [m] (= x (get m k))))
 
@@ -199,13 +210,17 @@
                (cond-> {:type "checkbox"}
                  (= :question (:type i)) (assoc :checked (trip-selected (:yes i))
                                                 :on-change #(toggle-trip-type
-                                                             (:yes i))))]
+                                                             (:yes i)))
+                 (not= :question (:type i)) (assoc :checked (checked? i)
+                                                   :on-change #(toggle-item i)))]
               (when (= :action (:type i)) "TODO: ") (:value i)]])]
          [:ul
           (for [i (sort-by :type items)]
             ^{:key i}
             [:div
-             [:label [:input {:type "checkbox"}]
+             [:label [:input {:type "checkbox"
+                              :checked (checked? i)
+                              :on-change #(toggle-item i)}]
               (when (= :action (:type i)) "TODO: ") (:value i)]])]])]))
 
 #?(:cljs
