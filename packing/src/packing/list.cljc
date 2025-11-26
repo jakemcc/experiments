@@ -31,6 +31,7 @@
                  (i "work phone")
                  (i "clothes for the office")
                  (i "clothes for dinners")
+                 (i "monitor glasses")
                  (i "office badge")}
 
    ::bouldering #{(i "crash pad")
@@ -92,6 +93,7 @@
                    (i "Whoop")
                    (i "Whoop charger")
                    (i "Personal laptop")
+                   (i "monitor glasses")
                    (i "Kindle")
                    (i "Remarkable")
                    (i "Travel Keyboard")
