@@ -1,10 +1,247 @@
 <html>
   <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="vendor/scittle.js" type="application/javascript"></script>
     <script src="vendor/react.production.min.js"></script>
     <script src="vendor/react-dom.production.min.js"></script>
     <script src="vendor/scittle.reagent.js" type="application/javascript"></script>
     <script src="list.cljc" type="application/x-scittle"></script>
+    <style>
+      :root {
+        --bg: #eef2f7;
+        --card: #ffffff;
+        --accent: #2b6cb0;
+        --border: #d8dee9;
+        --text: #1f2933;
+        --muted: #4b5563;
+        --shadow: 0 10px 30px rgba(31, 41, 51, 0.08);
+        --radius: 14px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: linear-gradient(135deg, #f6f8fb, var(--bg));
+        font-family: "Avenir Next", "Segoe UI Variable", "Trebuchet MS",
+          "Helvetica Neue", sans-serif;
+        color: var(--text);
+      }
+
+      #app {
+        min-height: 100vh;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+
+      p {
+        margin: 0;
+      }
+
+      .app-shell {
+        max-width: 1020px;
+        margin: 0 auto;
+        padding: 24px 18px 42px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      @media (min-width: 768px) {
+        .app-shell {
+          padding: 32px 30px 54px;
+          gap: 22px;
+        }
+      }
+
+      .hero {
+        background: var(--card);
+        border-radius: var(--radius);
+        padding: 18px 18px 16px;
+        box-shadow: var(--shadow);
+        border: 1px solid var(--border);
+      }
+
+      .hero .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px;
+        display: inline-block;
+      }
+
+      .hero h1 {
+        font-size: clamp(24px, 4vw, 30px);
+        margin-bottom: 6px;
+      }
+
+      .hero p {
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.5;
+      }
+
+      .action-bar {
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      button {
+        border: none;
+        background: var(--accent);
+        color: #fff;
+        border-radius: 10px;
+        padding: 11px 14px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        box-shadow: 0 8px 18px rgba(43, 108, 176, 0.25);
+        cursor: pointer;
+        transition: transform 120ms ease, box-shadow 120ms ease,
+          opacity 140ms ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 20px rgba(43, 108, 176, 0.32);
+      }
+
+      button:active {
+        transform: translateY(0);
+        box-shadow: 0 6px 12px rgba(43, 108, 176, 0.2);
+      }
+
+      button:focus-visible {
+        outline: 3px solid rgba(43, 108, 176, 0.35);
+        outline-offset: 2px;
+      }
+
+      .section {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .section-head {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .section-head h2 {
+        font-size: 18px;
+      }
+
+      .section-head p {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .trip-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+      }
+
+      .trip-card {
+        background: var(--card);
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        padding: 12px 14px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        box-shadow: var(--shadow);
+        min-height: 56px;
+      }
+
+      .trip-card input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--accent);
+      }
+
+      #list {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      @media (min-width: 860px) {
+        #list {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .list-item {
+        background: var(--card);
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        padding: 10px 12px;
+        box-shadow: var(--shadow);
+        display: flex;
+        align-items: center;
+      }
+
+      .list-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        font-size: 15px;
+      }
+
+      .list-label .item-text {
+        flex: 1;
+        line-height: 1.45;
+      }
+
+      .list-label .pill {
+        background: rgba(43, 108, 176, 0.12);
+        color: var(--accent);
+        border-radius: 999px;
+        padding: 3px 8px;
+        font-weight: 700;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .list-label input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--accent);
+      }
+
+      @media (max-width: 560px) {
+        .trip-card,
+        .list-item {
+          padding: 12px 14px;
+        }
+
+        .app-shell {
+          padding: 20px 14px 32px;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>

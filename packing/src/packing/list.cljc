@@ -127,58 +127,53 @@
 
 (defn new-state [] {:trip-types #{} :checked-items #{}})
 
-#?(:cljs
-   (defonce state (r/atom (new-state))))
+#?(:cljs (defonce state (r/atom (new-state))))
 
-#?(:cljs
-   (defn load-from-hash
-     []
-     (let [hash (.-hash js/location)
-           hash (js/decodeURIComponent (subs hash 1))]
-       (println hash)
-       (try
-         (if (string/blank? hash)
-           (new-state)
-           (-> (js/atob hash)
-               (read-string)
-               (update :trip-types set)
-               (update :checked-items set)))
-         (catch js/Error _
-           (new-state))))))
+#?(:cljs (defn load-from-hash
+           []
+           (let [hash (.-hash js/location)
+                 hash (js/decodeURIComponent (subs hash 1))]
+             (println hash)
+             (try (if (string/blank? hash)
+                    (new-state)
+                    (-> (js/atob hash)
+                        (read-string)
+                        (update :trip-types set)
+                        (update :checked-items set)))
+                  (catch js/Error _ (new-state))))))
 
-#?(:cljs
-   (defn set-hash!
-     [m]
-     ;; Encode state as base64 to keep the hash short(ish) and less readable.
-     (set! (.-hash js/location) (js/encodeURIComponent (js/btoa (pr-str m))))))
+#?(:cljs (defn set-hash!
+           [m]
+           ;; Encode state as base64 to keep the hash short(ish) and less
+           ;; readable.
+           (set! (.-hash js/location)
+                 (js/encodeURIComponent (js/btoa (pr-str m))))))
 
-#?(:cljs
-   (add-watch state :state-changed (fn [k ref old new] (prn new) (set-hash! new))))
+#?(:cljs (add-watch state
+                    :state-changed
+                    (fn [k ref old new] (prn new) (set-hash! new))))
 
 (defn toggle-membership
   [s type]
   (if (contains? s type) (disj s type) (conj s type)))
 
-#?(:cljs
-   (defn toggle-trip-type
-     [type]
-     (swap! state update :trip-types toggle-membership type)))
+#?(:cljs (defn toggle-trip-type
+           [type]
+           (swap! state update :trip-types toggle-membership type)))
+
+#?(:cljs (defn trip-selected [type] (contains? (:trip-types @state) type)))
+
+#?(:cljs (defn trip-types [] (:trip-types @state)))
+
+#?(:cljs (defn item-key [item] [(:type item) (:value item)]))
 
 #?(:cljs
-   (defn trip-selected [type] (contains? (:trip-types @state) type)))
+     (defn checked? [item] (contains? (:checked-items @state) (item-key item))))
 
 #?(:cljs
-   (defn trip-types [] (:trip-types @state)))
-
-#?(:cljs
-   (defn item-key [item] [(:type item) (:value item)]))
-
-#?(:cljs
-   (defn checked? [item] (contains? (:checked-items @state) (item-key item))))
-
-#?(:cljs
-   (defn toggle-item [item]
-     (swap! state update :checked-items toggle-membership (item-key item))))
+     (defn toggle-item
+       [item]
+       (swap! state update :checked-items toggle-membership (item-key item))))
 
 (defn- k= [k x] (fn [m] (= x (get m k))))
 
@@ -189,46 +184,59 @@
   (clojure.set/difference (set (keys packing-lists)) subcategory-trip-types))
 
 #?(:cljs
-   (defn my-component
-     []
-     [:div [:div#actions [:button {:on-click #(reset! state (new-state))} "reset"]]
-      [:div#trip-types
-       (for [type root-trip-types]
-         ^{:key type}
-         [:div
-          [:label
-           [:input
-            {:type "checkbox"
-             :checked (trip-selected type)
-             :on-change #(toggle-trip-type type)}] type]])]
-      (let [[items others] (->> (trip-types)
-                                (mapv (partial packing-list' packing-lists))
-                                (reduce clojure.set/union)
-                                (bucket-by (k= :type :item)))]
-        [:div#list
-         [:ul
-          (for [i (reverse (sort-by :type others))]
-            ^{:key i}
-            [:div
-             [:label
+     (defn my-component
+       []
+       [:div.app-shell
+        [:header.hero [:span.eyebrow "Packing helper"]
+         [:h1 "Pack once, pack right"]
+         [:p
+          "Pick the trip types that apply and check things off as you pack. The URL is your list, so to continue on another device, share your URL."]]
+        [:div#actions.action-bar
+         [:button {:on-click #(reset! state (new-state))} "Reset list"]]
+        [:section.section [:div.section-head [:h2 "Trip Categories"]]
+         [:div#trip-types.trip-grid
+          (for [type root-trip-types]
+            ^{:key type}
+            [:div.trip-card
+             [:label.list-label
               [:input
-               (cond-> {:type "checkbox"}
-                 (= :question (:type i)) (assoc :checked (trip-selected (:yes i))
-                                                :on-change #(toggle-trip-type
-                                                             (:yes i)))
-                 (not= :question (:type i)) (assoc :checked (checked? i)
-                                                   :on-change #(toggle-item i)))]
-              (when (= :action (:type i)) "TODO: ") (:value i)]])]
-         [:ul
-          (for [i (sort-by :type items)]
-            ^{:key i}
-            [:div
-             [:label [:input {:type "checkbox"
-                              :checked (checked? i)
-                              :on-change #(toggle-item i)}]
-              (when (= :action (:type i)) "TODO: ") (:value i)]])]])]))
+               {:type "checkbox"
+                :checked (trip-selected type)
+                :on-change #(toggle-trip-type type)}] (name type)]])]]
+        (let [[items others] (->> (trip-types)
+                                  (mapv (partial packing-list' packing-lists))
+                                  (reduce clojure.set/union)
+                                  (bucket-by (k= :type :item)))]
+          [:section.section
+           [:div.section-head [:h2 "Packing list"]
+            [:p "Tap items to mark them as taken care of."]]
+           [:div#list
+            [:ul
+             (for [i (reverse (sort-by :type others))]
+               ^{:key i}
+               [:div.list-item
+                [:label.list-label
+                 [:input
+                  (cond-> {:type "checkbox"}
+                    (= :question (:type i))
+                    (assoc :checked (trip-selected (:yes i))
+                           :on-change #(toggle-trip-type (:yes i)))
+                    (not= :question (:type i))
+                    (assoc :checked (checked? i) :on-change #(toggle-item i)))]
+                 (when (= :action (:type i)) [:span.pill "Todo"])
+                 (when (= :question (:type i)) [:span.pill "Add"])
+                 [:span.item-text (:value i)]]])]
+            [:ul
+             (for [i (sort-by :type items)]
+               ^{:key i}
+               [:div.list-item
+                [:label.list-label
+                 [:input
+                  {:type "checkbox"
+                   :checked (checked? i)
+                   :on-change #(toggle-item i)}]
+                 (when (= :action (:type i)) [:span.pill "Todo"])
+                 [:span.item-text (:value i)]]])]]])]))
 
-#?(:cljs
-   (do
-     (reset! state (load-from-hash))
-     (rdom/render [my-component] (.getElementById js/document "app"))))
+#?(:cljs (do (reset! state (load-from-hash))
+             (rdom/render [my-component] (.getElementById js/document "app"))))
