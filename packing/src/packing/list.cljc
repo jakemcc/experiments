@@ -136,16 +136,21 @@
      (let [hash (.-hash js/location)
            hash (js/decodeURIComponent (subs hash 1))]
        (println hash)
-       (if (string/blank? hash)
-         (new-state)
-         (-> (read-string hash)
-             (update :trip-types set)
-             (update :checked-items set))))))
+       (try
+         (if (string/blank? hash)
+           (new-state)
+           (-> (js/atob hash)
+               (read-string)
+               (update :trip-types set)
+               (update :checked-items set)))
+         (catch js/Error _
+           (new-state))))))
 
 #?(:cljs
    (defn set-hash!
      [m]
-     (set! (.-hash js/location) (js/encodeURIComponent (pr-str m)))))
+     ;; Encode state as base64 to keep the hash short(ish) and less readable.
+     (set! (.-hash js/location) (js/encodeURIComponent (js/btoa (pr-str m))))))
 
 #?(:cljs
    (add-watch state :state-changed (fn [k ref old new] (prn new) (set-hash! new))))
