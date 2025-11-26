@@ -288,21 +288,31 @@ describe('Commitment UI', () => {
   });
 
   it('renders success visualization', async () => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    localStorage.setItem('heldSuccessDates', JSON.stringify([todayStr]));
-    await setup();
-    const squares = document.querySelectorAll('#success-visual .day');
-    expect(squares.length).toBe(7);
-    expect(squares[squares.length - 1].classList.contains('success')).toBe(true);
+    const restoreDate = mockDate('2023-01-05T12:00:00Z');
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      localStorage.setItem('heldSuccessDates', JSON.stringify([todayStr]));
+      await setup();
+      const squares = document.querySelectorAll('#success-visual .day');
+      expect(squares.length).toBe(7);
+      expect(squares[squares.length - 1].classList.contains('success')).toBe(true);
+    } finally {
+      restoreDate();
+    }
   });
 
   it('renders failure visualization', async () => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    localStorage.setItem('heldFailureDates', JSON.stringify([todayStr]));
-    await setup();
-    const squares = document.querySelectorAll('#success-visual .day');
-    expect(squares.length).toBe(7);
-    expect(squares[squares.length - 1].classList.contains('failure')).toBe(true);
+    const restoreDate = mockDate('2023-01-05T12:00:00Z');
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      localStorage.setItem('heldFailureDates', JSON.stringify([todayStr]));
+      await setup();
+      const squares = document.querySelectorAll('#success-visual .day');
+      expect(squares.length).toBe(7);
+      expect(squares[squares.length - 1].classList.contains('failure')).toBe(true);
+    } finally {
+      restoreDate();
+    }
   });
 
   it('shows dates under success visualization', async () => {
