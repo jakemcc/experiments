@@ -1,6 +1,14 @@
+.DEFAULT_GOAL := help
+
+.PHONY: help
+help: ## Show this help.
+	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+	 sort | \
+	 awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
 .PHONY: test test-packing test-commitment test-streaktracker build build-packing build-commitment build-streaktracker prepare-site clean
 
-test: test-packing test-commitment test-streaktracker
+test: test-packing test-commitment test-streaktracker ## Run all tests across projects.
 
 test-packing:
 	$(MAKE) -C packing test
@@ -11,7 +19,7 @@ test-commitment:
 test-streaktracker:
 	$(MAKE) -C StreakTracker test
 
-build: clean build-packing build-commitment build-streaktracker prepare-site
+build: clean build-packing build-commitment build-streaktracker prepare-site ## Build all projects and assemble site/ artifacts (no tests).
 
 build-packing:
 	$(MAKE) -C packing build
@@ -31,5 +39,5 @@ prepare-site:
 	cp -r StreakTracker/dist site/StreakTracker/
 	cp index.html site/index.html
 
-clean:
+clean: ## Remove built site artifacts.
 	rm -rf site
