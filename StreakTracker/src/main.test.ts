@@ -177,50 +177,53 @@ test('stats update for all colors and streaks', async () => {
 
 test('longest green or blue streak spans both colors', async () => {
   const restoreDate = mockDate('2023-06-15T00:00:00Z');
-  document.body.innerHTML = '<div id="calendars"></div>';
-  await setup();
-  const stats = document.querySelector('.stats') as HTMLElement;
-  const daysPassed = new Date().getDate();
-  const getCell = (day: string) =>
-    Array.from(document.querySelectorAll('.day')).find(
-      (c) => c.textContent === day
-    ) as HTMLElement;
-  const getState = (cell: HTMLElement) => {
-    if (cell.classList.contains('red')) {
-      return 1;
-    }
-    if (cell.classList.contains('green')) {
-      return 2;
-    }
-    if (cell.classList.contains('blue')) {
-      return 3;
-    }
-    return 0;
-  };
-  const setState = (cell: HTMLElement, state: number) => {
-    for (let i = 0; i < 4; i++) {
-      if (getState(cell) === state) {
-        return;
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+    const stats = document.querySelector('.stats') as HTMLElement;
+    const daysPassed = new Date().getDate();
+    const getCell = (day: string) =>
+      Array.from(document.querySelectorAll('.day')).find(
+        (c) => c.textContent === day
+      ) as HTMLElement;
+    const getState = (cell: HTMLElement) => {
+      if (cell.classList.contains('red')) {
+        return 1;
       }
-      cell.click();
-    }
-    throw new Error('Unable to reach desired state');
-  };
-  setState(getCell('1'), 2);
-  await flushAsyncOperations();
-  setState(getCell('2'), 2);
-  await flushAsyncOperations();
-  setState(getCell('3'), 3);
-  await flushAsyncOperations();
-  setState(getCell('4'), 2);
-  await flushAsyncOperations();
-  expect(stats.innerHTML).toBe(
-    [
+      if (cell.classList.contains('green')) {
+        return 2;
+      }
+      if (cell.classList.contains('blue')) {
+        return 3;
+      }
+      return 0;
+    };
+    const setState = (cell: HTMLElement, state: number) => {
+      for (let i = 0; i < 4; i++) {
+        if (getState(cell) === state) {
+          return;
+        }
+        cell.click();
+      }
+      throw new Error('Unable to reach desired state');
+    };
+    setState(getCell('1'), 2);
+    await flushAsyncOperations();
+    setState(getCell('2'), 2);
+    await flushAsyncOperations();
+    setState(getCell('3'), 3);
+    await flushAsyncOperations();
+    setState(getCell('4'), 2);
+    await flushAsyncOperations();
+    const expected = [
       `Green days: 3/${daysPassed}, Longest green streak: 2`,
       `Red days: 0/${daysPassed}, Longest red streak: 0`,
       `Blue days: 1/${daysPassed}, Longest blue streak: 1`,
       'Longest green or blue streak: 4',
-    ].join('<br>')
-  );
-  restoreDate();
+    ].join('<br>');
+    await waitForCondition(() => stats.innerHTML === expected);
+    expect(stats.innerHTML).toBe(expected);
+  } finally {
+    restoreDate();
+  }
 });
