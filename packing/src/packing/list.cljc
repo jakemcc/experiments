@@ -80,6 +80,8 @@
                 (i "Zyrtec")
                 (i "Allegra (Fexofenadine)")
                 (i "Pepcid/Zantac/Famotidine")
+                (i "Auvi-Q injector")
+                (i "inhaler")
                 (i "supplements")
                 (i "shampoo")
                 (i "towel")
