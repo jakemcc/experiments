@@ -11,6 +11,7 @@
 (defn q [s yes-answer] {:type :question :value s :yes yes-answer})
 
 (def always #{::accessories ::bathroom ::clothes})
+(def global-items #{(a "Hold mail")})
 
 ;;!zprint {:format :skip}
 (def packing-lists
@@ -210,6 +211,7 @@
         (let [[items others] (->> (trip-types)
                                   (mapv (partial packing-list' packing-lists))
                                   (reduce clojure.set/union)
+                                  (clojure.set/union global-items)
                                   (bucket-by (k= :type :item)))]
           [:section.section
            [:div.section-head [:h2 "Packing list"]
