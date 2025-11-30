@@ -11,6 +11,18 @@
       font-family: Arial, sans-serif;
       padding: 1rem;
     }
+    #streak-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    #streak-controls select,
+    #streak-controls input,
+    #streak-controls button {
+      font-size: 1rem;
+      padding: 0.35rem;
+    }
     .calendar {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
@@ -46,6 +58,7 @@
   </style>
 </head>
 <body>
+  <div id="streak-controls"></div>
   <div id="calendars"></div>
   <script type="module" src="./dist/main.js"></script>
 </body>

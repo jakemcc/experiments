@@ -1,9 +1,47 @@
 const DB_NAME = 'streak-tracker';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'dayStates';
+const STREAK_STORE = 'streaks';
+const STREAK_LIST_KEY = 'names';
 const DATE_KEY_PATTERN = /^\d{4}-\d{1,2}-\d{1,2}$/;
+const DAY_KEY_PATTERN = /^([^:]+)::(\d{4}-\d{1,2}-\d{1,2})$/;
+const DEFAULT_STREAK_NAME = 'My Streak';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
+
+function buildDayKey(streakName: string, dateKey: string): string {
+  return `${encodeURIComponent(streakName)}::${dateKey}`;
+}
+
+function parseDayKey(key: string): { streak: string; dateKey: string } | null {
+  const match = key.match(DAY_KEY_PATTERN);
+  if (!match) {
+    return null;
+  }
+  return { streak: decodeURIComponent(match[1]), dateKey: match[2] };
+}
+
+function getHashStreak(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const hash = window.location.hash.replace(/^#/, '');
+  if (!hash) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(hash);
+  } catch {
+    return hash;
+  }
+}
+
+function setHashStreak(streakName: string): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  window.location.hash = encodeURIComponent(streakName);
+}
 
 export function generateCalendar(year: number, month: number): (number | null)[] {
   const firstDay = new Date(year, month, 1).getDay();
@@ -38,6 +76,9 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
       }
+      if (!db.objectStoreNames.contains(STREAK_STORE)) {
+        db.createObjectStore(STREAK_STORE);
+      }
     };
     request.onsuccess = () => {
       const db = request.result;
@@ -57,6 +98,44 @@ function getDb(): Promise<IDBDatabase> {
     dbPromise = openDatabase();
   }
   return dbPromise;
+}
+
+async function getStoredStreakNames(db: IDBDatabase): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STREAK_STORE, 'readonly');
+    const store = tx.objectStore(STREAK_STORE);
+    const request = store.get(STREAK_LIST_KEY);
+    request.onsuccess = () => {
+      const result = request.result;
+      if (Array.isArray(result)) {
+        resolve(result.filter((item) => typeof item === 'string'));
+      } else {
+        resolve([]);
+      }
+    };
+    request.onerror = () => {
+      reject(request.error ?? new Error('Failed to load streak names'));
+    };
+  });
+}
+
+async function saveStreakNames(db: IDBDatabase, names: string[]): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STREAK_STORE, 'readwrite');
+    const store = tx.objectStore(STREAK_STORE);
+    store.put(names, STREAK_LIST_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Failed to save streak names'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Failed to save streak names'));
+    };
+  });
+}
+
+function normalizeStreakName(name: string): string {
+  return name.trim() || DEFAULT_STREAK_NAME;
 }
 
 async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
@@ -82,7 +161,7 @@ async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
     for (const entry of entries) {
-      store.put(entry.state, entry.key);
+      store.put(entry.state, buildDayKey(DEFAULT_STREAK_NAME, entry.key));
     }
     tx.oncomplete = () => {
       for (const entry of entries) {
@@ -99,8 +178,9 @@ async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
   });
 }
 
-async function getAllDayStates(db: IDBDatabase): Promise<Map<string, number>> {
-  const states = new Map<string, number>();
+async function migrateUnscopedDayStates(db: IDBDatabase): Promise<void> {
+  const legacyEntries: { key: string; state: number }[] = [];
+
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
     const store = tx.objectStore(STORE_NAME);
@@ -111,8 +191,10 @@ async function getAllDayStates(db: IDBDatabase): Promise<Map<string, number>> {
     request.onsuccess = (event) => {
       const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
       if (cursor) {
-        if (typeof cursor.value === 'number') {
-          states.set(cursor.key as string, cursor.value);
+        if (typeof cursor.key === 'string' && typeof cursor.value === 'number') {
+          if (DATE_KEY_PATTERN.test(cursor.key)) {
+            legacyEntries.push({ key: cursor.key, state: cursor.value });
+          }
         }
         cursor.continue();
       }
@@ -125,14 +207,79 @@ async function getAllDayStates(db: IDBDatabase): Promise<Map<string, number>> {
       reject(tx.error ?? new Error('Failed to read state'));
     };
   });
-  return states;
-}
 
-async function setDayState(db: IDBDatabase, key: string, state: number): Promise<void> {
+  if (legacyEntries.length === 0) {
+    return;
+  }
+
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
-    store.put(state, key);
+    for (const entry of legacyEntries) {
+      store.delete(entry.key);
+      store.put(entry.state, buildDayKey(DEFAULT_STREAK_NAME, entry.key));
+    }
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Failed to migrate state'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Failed to migrate state'));
+    };
+  });
+}
+
+async function getAllDayStates(
+  db: IDBDatabase,
+): Promise<{ streakStates: Map<string, Map<string, number>>; streakNames: Set<string> }>
+{
+  const streakStates = new Map<string, Map<string, number>>();
+  const streakNames = new Set<string>();
+
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.openCursor();
+    request.onerror = () => {
+      reject(request.error ?? new Error('Failed to read state'));
+    };
+    request.onsuccess = (event) => {
+      const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+      if (cursor) {
+        if (typeof cursor.value === 'number' && typeof cursor.key === 'string') {
+          const parsed = parseDayKey(cursor.key);
+          if (parsed) {
+            streakNames.add(parsed.streak);
+            const streakMap = streakStates.get(parsed.streak) ?? new Map<string, number>();
+            streakMap.set(parsed.dateKey, cursor.value);
+            streakStates.set(parsed.streak, streakMap);
+          }
+        }
+        cursor.continue();
+      }
+    };
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Failed to read state'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Failed to read state'));
+    };
+  });
+
+  return { streakStates, streakNames };
+}
+
+async function setDayState(
+  db: IDBDatabase,
+  streakName: string,
+  dateKey: string,
+  state: number,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    store.put(state, buildDayKey(streakName, dateKey));
     tx.oncomplete = () => resolve();
     tx.onabort = () => {
       reject(tx.error ?? new Error('Failed to save state'));
@@ -143,11 +290,11 @@ async function setDayState(db: IDBDatabase, key: string, state: number): Promise
   });
 }
 
-async function removeDayState(db: IDBDatabase, key: string): Promise<void> {
+async function removeDayState(db: IDBDatabase, streakName: string, dateKey: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
-    store.delete(key);
+    store.delete(buildDayKey(streakName, dateKey));
     tx.oncomplete = () => resolve();
     tx.onabort = () => {
       reject(tx.error ?? new Error('Failed to remove state'));
@@ -195,20 +342,107 @@ export async function clearAllStoredDaysForTests(): Promise<void> {
       reject(tx.error ?? new Error('Failed to clear store'));
     };
   });
+
+  if (db.objectStoreNames.contains(STREAK_STORE)) {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STREAK_STORE, 'readwrite');
+      const store = tx.objectStore(STREAK_STORE);
+      const request = store.clear();
+      request.onerror = () => {
+        reject(request.error ?? new Error('Failed to clear streak store'));
+      };
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => {
+        reject(tx.error ?? new Error('Failed to clear streak store'));
+      };
+      tx.onerror = () => {
+        reject(tx.error ?? new Error('Failed to clear streak store'));
+      };
+    });
+  }
 }
 
-export async function setup(): Promise<void> {
-  void requestPersistentStorage();
-  const container = document.getElementById('calendars');
-  if (!container) {
-    return;
-  }
-  container.innerHTML = '';
+function renderStreakControls(
+  controlsContainer: HTMLElement,
+  streakNames: string[],
+  selectedStreak: string,
+  onSelect: (name: string) => void,
+  onCreate: (name: string) => void,
+): void {
+  controlsContainer.innerHTML = '';
 
-  const now = new Date();
-  const db = await getDb();
-  await migrateFromLocalStorage(db);
-  const stateMap = await getAllDayStates(db);
+  const heading = document.createElement('h2');
+  heading.textContent = 'Streaks';
+  controlsContainer.appendChild(heading);
+
+  const selectLabel = document.createElement('label');
+  selectLabel.textContent = 'Choose a streak: ';
+  const select = document.createElement('select');
+  streakNames.forEach((name) => {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    if (name === selectedStreak) {
+      option.selected = true;
+    }
+    select.appendChild(option);
+  });
+  select.addEventListener('change', () => {
+    onSelect(select.value);
+  });
+  selectLabel.appendChild(select);
+  controlsContainer.appendChild(selectLabel);
+
+  const addContainer = document.createElement('div');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = 'New streak name';
+  const addButton = document.createElement('button');
+  addButton.textContent = 'Add streak';
+  const createStreak = () => {
+    const rawName = input.value.trim();
+    if (!rawName) {
+      return;
+    }
+    input.value = '';
+    onCreate(rawName);
+  };
+  addButton.addEventListener('click', createStreak);
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      createStreak();
+    }
+  });
+  addContainer.appendChild(input);
+  addContainer.appendChild(addButton);
+  controlsContainer.appendChild(addContainer);
+}
+
+function ensureControlsContainer(calendars: HTMLElement): HTMLElement {
+  const existing = document.getElementById('streak-controls');
+  if (existing) {
+    return existing;
+  }
+  const wrapper = document.createElement('div');
+  wrapper.id = 'streak-controls';
+  calendars.before(wrapper);
+  return wrapper;
+}
+
+function renderCalendars(
+  container: HTMLElement,
+  streakName: string,
+  now: Date,
+  db: IDBDatabase,
+  streakStates: Map<string, Map<string, number>>,
+): void {
+  container.innerHTML = '';
+  const existingStateMap = streakStates.get(streakName);
+  const stateMap = existingStateMap ?? new Map<string, number>();
+  if (!existingStateMap) {
+    streakStates.set(streakName, stateMap);
+  }
   const months = getStoredMonths(now, stateMap).sort((a, b) => {
     if (a.year === b.year) {
       return b.month - a.month;
@@ -345,7 +579,7 @@ export async function setup(): Promise<void> {
             monthState.delete(value);
             stateMap.delete(dateKey);
             try {
-              await removeDayState(db, dateKey);
+              await removeDayState(db, streakName, dateKey);
             } catch (error) {
               console.error('Failed to remove day state', error);
             }
@@ -353,7 +587,7 @@ export async function setup(): Promise<void> {
             monthState.set(value, state);
             stateMap.set(dateKey, state);
             try {
-              await setDayState(db, dateKey, state);
+              await setDayState(db, streakName, dateKey, state);
             } catch (error) {
               console.error('Failed to save day state', error);
             }
@@ -368,6 +602,81 @@ export async function setup(): Promise<void> {
     container.appendChild(section);
     updateStats();
   });
+}
+
+export async function setup(): Promise<void> {
+  void requestPersistentStorage();
+  const container = document.getElementById('calendars');
+  if (!container) {
+    return;
+  }
+
+  const controls = ensureControlsContainer(container);
+  controls.innerHTML = '';
+  container.innerHTML = '';
+
+  const now = new Date();
+  const db = await getDb();
+  await migrateFromLocalStorage(db);
+  await migrateUnscopedDayStates(db);
+  const { streakStates, streakNames: streakNamesFromStates } = await getAllDayStates(db);
+
+  let storedNames: string[] = [];
+  try {
+    storedNames = await getStoredStreakNames(db);
+  } catch (error) {
+    console.error('Failed to load streak names', error);
+  }
+
+  const namesSet = new Set<string>(storedNames.map(normalizeStreakName));
+  streakNamesFromStates.forEach((name) => namesSet.add(normalizeStreakName(name)));
+
+  let selectedStreak = normalizeStreakName(getHashStreak() ?? DEFAULT_STREAK_NAME);
+  if (namesSet.size === 0) {
+    namesSet.add(DEFAULT_STREAK_NAME);
+  }
+  if (!namesSet.has(selectedStreak)) {
+    namesSet.add(selectedStreak);
+  }
+
+  let streakNames = Array.from(namesSet);
+  streakNames.forEach((name) => {
+    if (!streakStates.has(name)) {
+      streakStates.set(name, new Map());
+    }
+  });
+
+  await saveStreakNames(db, streakNames);
+  setHashStreak(selectedStreak);
+
+  const renderControls = () => {
+    renderStreakControls(
+      controls,
+      streakNames,
+      selectedStreak,
+      (name) => {
+        selectedStreak = normalizeStreakName(name);
+        setHashStreak(selectedStreak);
+        renderCalendars(container, selectedStreak, now, db, streakStates);
+        renderControls();
+      },
+      async (rawName) => {
+        const name = normalizeStreakName(rawName);
+        if (!streakNames.includes(name)) {
+          streakNames = [...streakNames, name];
+          streakStates.set(name, streakStates.get(name) ?? new Map());
+          await saveStreakNames(db, streakNames);
+        }
+        selectedStreak = name;
+        setHashStreak(selectedStreak);
+        renderCalendars(container, selectedStreak, now, db, streakStates);
+        renderControls();
+      },
+    );
+  };
+
+  renderControls();
+  renderCalendars(container, selectedStreak, now, db, streakStates);
 }
 
 function registerServiceWorker() {

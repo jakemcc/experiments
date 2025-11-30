@@ -63,6 +63,9 @@ beforeEach(async () => {
   document.body.innerHTML = '';
   localStorage.clear();
   await clearAllStoredDaysForTests();
+  if (typeof window !== 'undefined') {
+    window.location.hash = '';
+  }
 });
 
 test('generateCalendar has 42 cells and correct day count', () => {
@@ -103,6 +106,70 @@ test('third click sets day to blue and persists state', async () => {
     (c) => c.textContent === '1'
   ) as HTMLElement;
   expect(cell2.classList.contains('blue')).toBe(true);
+});
+
+test('streak selection uses URL hash and keeps calendars separate', async () => {
+  window.location.hash = '#Work';
+  document.body.innerHTML = '<div id="calendars"></div>';
+  await setup();
+
+  const getCell = (day: string) =>
+    Array.from(document.querySelectorAll('.day')).find((c) => c.textContent === day) as HTMLElement;
+
+  const workCell = getCell('1');
+  workCell.click();
+  await flushAsyncOperations();
+  expect(window.location.hash).toBe('#Work');
+
+  const select = document.querySelector('#streak-controls select') as HTMLSelectElement;
+  select.value = 'My Streak';
+  select.dispatchEvent(new Event('change'));
+  await flushAsyncOperations();
+
+  const defaultCell = getCell('1');
+  expect(defaultCell.classList.contains('red')).toBe(false);
+  defaultCell.click();
+  await flushAsyncOperations();
+
+  select.value = 'Work';
+  select.dispatchEvent(new Event('change'));
+  await flushAsyncOperations();
+
+  const workCellAgain = getCell('1');
+  expect(workCellAgain.classList.contains('red')).toBe(true);
+});
+
+test('legacy unscoped data is migrated into the default streak', async () => {
+  const restoreDate = mockDate('2024-02-10T00:00:00Z');
+  document.body.innerHTML = '<div id="calendars"></div>';
+
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open('streak-tracker', 2);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('dayStates')) {
+        db.createObjectStore('dayStates');
+      }
+    };
+    request.onerror = () => reject(request.error ?? new Error('open failed'));
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction('dayStates', 'readwrite');
+      tx.objectStore('dayStates').put(2, '2024-2-1');
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => reject(tx.error ?? new Error('write failed'));
+    };
+  });
+
+  await setup();
+  const cell = Array.from(document.querySelectorAll('.day')).find(
+    (c) => c.textContent === '1'
+  ) as HTMLElement;
+  expect(cell.classList.contains('green')).toBe(true);
+  restoreDate();
 });
 
 test('renders previous months below current month', async () => {
