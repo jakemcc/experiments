@@ -370,14 +370,21 @@ function renderStreakControls(
   onCreate: (name: string) => void,
 ): void {
   controlsContainer.innerHTML = '';
+  controlsContainer.classList.add('streak-controls');
 
   const heading = document.createElement('h2');
   heading.textContent = 'Streaks';
+  heading.className = 'streak-controls__title';
   controlsContainer.appendChild(heading);
 
+  const selectWrapper = document.createElement('div');
+  selectWrapper.className = 'streak-select';
   const selectLabel = document.createElement('label');
-  selectLabel.textContent = 'Choose a streak: ';
+  selectLabel.textContent = 'Choose a streak';
+  selectLabel.className = 'sr-only';
+  selectLabel.htmlFor = 'streak-select';
   const select = document.createElement('select');
+  select.id = 'streak-select';
   streakNames.forEach((name) => {
     const option = document.createElement('option');
     option.value = name;
@@ -390,15 +397,18 @@ function renderStreakControls(
   select.addEventListener('change', () => {
     onSelect(select.value);
   });
-  selectLabel.appendChild(select);
-  controlsContainer.appendChild(selectLabel);
+  selectWrapper.appendChild(selectLabel);
+  selectWrapper.appendChild(select);
+  controlsContainer.appendChild(selectWrapper);
 
   const addContainer = document.createElement('div');
+  addContainer.className = 'streak-add';
   const input = document.createElement('input');
   input.type = 'text';
   input.placeholder = 'New streak name';
   const addButton = document.createElement('button');
-  addButton.textContent = 'Add streak';
+  addButton.type = 'button';
+  addButton.textContent = 'Add';
   const createStreak = () => {
     const rawName = input.value.trim();
     if (!rawName) {

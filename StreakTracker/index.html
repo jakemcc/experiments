@@ -13,15 +13,65 @@
     }
     #streak-controls {
       display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    #streak-controls h2 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: 0.01em;
+    }
+    .streak-select,
+    .streak-add {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex: 1 1 240px;
+      min-width: 0;
     }
     #streak-controls select,
     #streak-controls input,
     #streak-controls button {
-      font-size: 1rem;
-      padding: 0.35rem;
+      font-size: 0.95rem;
+      padding: 0.25rem 0.45rem;
+    }
+    #streak-controls select {
+      flex: 1 1 160px;
+    }
+    #streak-controls input {
+      flex: 1 1 180px;
+      min-width: 0;
+    }
+    #streak-controls button {
+      white-space: nowrap;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+      white-space: nowrap;
+    }
+    @media (max-width: 560px) {
+      #streak-controls {
+        gap: 0.25rem;
+      }
+      #streak-controls select,
+      #streak-controls input,
+      #streak-controls button {
+        font-size: 0.9rem;
+        padding: 0.2rem 0.4rem;
+      }
+      .streak-select,
+      .streak-add {
+        flex: 1 1 100%;
+      }
     }
     .calendar {
       display: grid;
