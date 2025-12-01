@@ -372,10 +372,8 @@ function renderStreakControls(
   controlsContainer.innerHTML = '';
   controlsContainer.classList.add('streak-controls');
 
-  const heading = document.createElement('h2');
-  heading.textContent = 'Streaks';
-  heading.className = 'streak-controls__title';
-  controlsContainer.appendChild(heading);
+  const row = document.createElement('div');
+  row.className = 'streak-controls__row';
 
   const selectWrapper = document.createElement('div');
   selectWrapper.className = 'streak-select';
@@ -399,7 +397,7 @@ function renderStreakControls(
   });
   selectWrapper.appendChild(selectLabel);
   selectWrapper.appendChild(select);
-  controlsContainer.appendChild(selectWrapper);
+  row.appendChild(selectWrapper);
 
   const addContainer = document.createElement('div');
   addContainer.className = 'streak-add';
@@ -426,7 +424,8 @@ function renderStreakControls(
   });
   addContainer.appendChild(input);
   addContainer.appendChild(addButton);
-  controlsContainer.appendChild(addContainer);
+  row.appendChild(addContainer);
+  controlsContainer.appendChild(row);
 }
 
 function ensureControlsContainer(calendars: HTMLElement): HTMLElement {
