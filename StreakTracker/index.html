@@ -27,8 +27,7 @@
       display: flex;
       align-items: center;
       gap: 0.35rem;
-      flex: 0 1 240px;
-      min-width: 120px;
+      flex: 0 0 auto;
     }
     .streak-controls__row {
       display: flex;
@@ -40,7 +39,6 @@
       padding-bottom: 2px;
     }
     #streak-controls select,
-    #streak-controls input,
     #streak-controls button {
       font-size: 0.95rem;
       padding: 0.25rem 0.45rem;
@@ -48,10 +46,6 @@
     #streak-controls select {
       flex: 1 1 auto;
       min-width: 140px;
-    }
-    #streak-controls input {
-      flex: 1 1 200px;
-      min-width: 0;
     }
     #streak-controls button {
       white-space: nowrap;
@@ -77,7 +71,6 @@
         gap: 0.2rem;
       }
       #streak-controls select,
-      #streak-controls input,
       #streak-controls button {
         font-size: 0.9rem;
         padding: 0.2rem 0.4rem;

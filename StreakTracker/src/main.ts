@@ -478,28 +478,23 @@ function renderStreakControls(
 
   const addContainer = document.createElement('div');
   addContainer.className = 'streak-add';
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.placeholder = 'New streak name';
   const addButton = document.createElement('button');
   addButton.type = 'button';
-  addButton.textContent = 'Add';
-  const createStreak = () => {
-    const rawName = input.value.trim();
-    if (!rawName) {
+  addButton.className = 'icon-button streak-add__button';
+  addButton.textContent = '+';
+  addButton.title = 'Create new streak';
+  addButton.setAttribute('aria-label', 'Create new streak');
+  addButton.addEventListener('click', () => {
+    const proposed = prompt('Create new streak');
+    if (proposed === null) {
       return;
     }
-    input.value = '';
-    onCreate(rawName);
-  };
-  addButton.addEventListener('click', createStreak);
-  input.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      createStreak();
+    const trimmed = proposed.trim();
+    if (!trimmed) {
+      return;
     }
+    onCreate(trimmed);
   });
-  addContainer.appendChild(input);
   addContainer.appendChild(addButton);
   row.appendChild(addContainer);
   controlsContainer.appendChild(row);

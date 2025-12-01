@@ -169,6 +169,25 @@ test('renaming a streak keeps its data and updates selection', async () => {
   }
 });
 
+test('creating a streak uses a prompt and selects the new streak', async () => {
+  const promptSpy = jest.spyOn(window, 'prompt').mockReturnValue('New Streak');
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+
+    const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
+    addButton.click();
+    await flushAsyncOperations();
+
+    const select = document.querySelector('#streak-select') as HTMLSelectElement;
+    await waitForCondition(() => select.value === 'New Streak');
+    expect(Array.from(select.options).map((option) => option.value)).toContain('New Streak');
+    expect(window.location.hash).toBe('#New%20Streak');
+  } finally {
+    promptSpy.mockRestore();
+  }
+});
+
 test('legacy unscoped data is migrated into the default streak', async () => {
   const restoreDate = mockDate('2024-02-10T00:00:00Z');
   document.body.innerHTML = '<div id="calendars"></div>';
