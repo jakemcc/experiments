@@ -305,6 +305,69 @@ async function removeDayState(db: IDBDatabase, streakName: string, dateKey: stri
   });
 }
 
+async function renameStreak(
+  db: IDBDatabase,
+  streakStates: Map<string, Map<string, number>>,
+  streakNames: string[],
+  oldName: string,
+  desiredName: string,
+): Promise<{ names: string[]; selected: string }> {
+  const currentName = normalizeStreakName(oldName);
+  const newName = normalizeStreakName(desiredName);
+  if (currentName === newName) {
+    return { names: streakNames, selected: currentName };
+  }
+
+  const oldStates = streakStates.get(currentName) ?? new Map<string, number>();
+  const mergedStates = new Map<string, number>(
+    streakStates.get(newName) ?? new Map<string, number>(),
+  );
+  oldStates.forEach((state, dateKey) => {
+    if (!mergedStates.has(dateKey)) {
+      mergedStates.set(dateKey, state);
+    }
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    oldStates.forEach((_, dateKey) => {
+      store.delete(buildDayKey(currentName, dateKey));
+    });
+    mergedStates.forEach((state, dateKey) => {
+      store.put(state, buildDayKey(newName, dateKey));
+    });
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Failed to rename streak data'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Failed to rename streak data'));
+    };
+  });
+
+  streakStates.set(newName, mergedStates);
+  streakStates.delete(currentName);
+
+  const currentIndex = streakNames.findIndex((name) => name === currentName);
+  const withoutOld = streakNames.filter((name) => name !== currentName);
+  const nextNames = withoutOld.includes(newName)
+    ? withoutOld
+    : (() => {
+        const updated = [...withoutOld];
+        if (currentIndex >= 0 && currentIndex <= updated.length) {
+          updated.splice(currentIndex, 0, newName);
+        } else {
+          updated.push(newName);
+        }
+        return updated;
+      })();
+
+  await saveStreakNames(db, nextNames);
+
+  return { names: nextNames, selected: newName };
+}
+
 function getStoredMonths(
   now: Date,
   stateMap: Map<string, number>,
@@ -368,6 +431,7 @@ function renderStreakControls(
   selectedStreak: string,
   onSelect: (name: string) => void,
   onCreate: (name: string) => void,
+  onRename: (name: string) => void,
 ): void {
   controlsContainer.innerHTML = '';
   controlsContainer.classList.add('streak-controls');
@@ -397,6 +461,19 @@ function renderStreakControls(
   });
   selectWrapper.appendChild(selectLabel);
   selectWrapper.appendChild(select);
+  const renameButton = document.createElement('button');
+  renameButton.type = 'button';
+  renameButton.className = 'icon-button streak-rename';
+  renameButton.title = 'Rename streak';
+  renameButton.setAttribute('aria-label', 'Rename selected streak');
+  renameButton.textContent = '✎';
+  renameButton.addEventListener('click', () => {
+    const proposed = prompt('Rename streak', selectedStreak);
+    if (proposed !== null) {
+      onRename(proposed);
+    }
+  });
+  selectWrapper.appendChild(renameButton);
   row.appendChild(selectWrapper);
 
   const addContainer = document.createElement('div');
@@ -680,6 +757,23 @@ export async function setup(): Promise<void> {
         setHashStreak(selectedStreak);
         renderCalendars(container, selectedStreak, now, db, streakStates);
         renderControls();
+      },
+      async (rawName) => {
+        const trimmed = rawName.trim();
+        if (!trimmed) {
+          return;
+        }
+        try {
+          const name = normalizeStreakName(trimmed);
+          const result = await renameStreak(db, streakStates, streakNames, selectedStreak, name);
+          streakNames = result.names;
+          selectedStreak = result.selected;
+          setHashStreak(selectedStreak);
+          renderCalendars(container, selectedStreak, now, db, streakStates);
+          renderControls();
+        } catch (error) {
+          console.error('Failed to rename streak', error);
+        }
       },
     );
   };

@@ -139,6 +139,36 @@ test('streak selection uses URL hash and keeps calendars separate', async () => 
   expect(workCellAgain.classList.contains('red')).toBe(true);
 });
 
+test('renaming a streak keeps its data and updates selection', async () => {
+  const promptSpy = jest.spyOn(window, 'prompt').mockReturnValue('Renamed');
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+    const firstCell = Array.from(document.querySelectorAll('.day')).find(
+      (c) => c.textContent === '1'
+    ) as HTMLElement;
+    firstCell.click();
+    await flushAsyncOperations();
+
+    const renameButton = document.querySelector('.streak-rename') as HTMLButtonElement;
+    renameButton.click();
+    await flushAsyncOperations();
+
+    const select = document.querySelector('#streak-select') as HTMLSelectElement;
+    await waitForCondition(() => select.value === 'Renamed');
+    expect(window.location.hash).toBe('#Renamed');
+
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+    const renamedCell = Array.from(document.querySelectorAll('.day')).find(
+      (c) => c.textContent === '1'
+    ) as HTMLElement;
+    expect(renamedCell.classList.contains('red')).toBe(true);
+  } finally {
+    promptSpy.mockRestore();
+  }
+});
+
 test('legacy unscoped data is migrated into the default streak', async () => {
   const restoreDate = mockDate('2024-02-10T00:00:00Z');
   document.body.innerHTML = '<div id="calendars"></div>';
