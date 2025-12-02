@@ -154,8 +154,10 @@ test('renaming a streak keeps its data and updates selection', async () => {
     renameButton.click();
     await flushAsyncOperations();
 
-    const select = document.querySelector('#streak-select') as HTMLSelectElement;
-    await waitForCondition(() => select.value === 'Renamed');
+    await waitForCondition(() => {
+      const select = document.querySelector('#streak-select') as HTMLSelectElement | null;
+      return select?.value === 'Renamed';
+    });
     expect(window.location.hash).toBe('#Renamed');
 
     document.body.innerHTML = '<div id="calendars"></div>';
@@ -179,8 +181,11 @@ test('creating a streak uses a prompt and selects the new streak', async () => {
     addButton.click();
     await flushAsyncOperations();
 
+    await waitForCondition(() => {
+      const select = document.querySelector('#streak-select') as HTMLSelectElement | null;
+      return select?.value === 'New Streak';
+    });
     const select = document.querySelector('#streak-select') as HTMLSelectElement;
-    await waitForCondition(() => select.value === 'New Streak');
     expect(Array.from(select.options).map((option) => option.value)).toContain('New Streak');
     expect(window.location.hash).toBe('#New%20Streak');
   } finally {
