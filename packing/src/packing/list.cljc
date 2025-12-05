@@ -91,6 +91,7 @@
    ::accessories #{(i "portable hangboard")
                    (i "force measuring device")
                    (i "USB-C cable")
+                   (i "USB-C to HDMI cable")
                    (i "USB-A cable")
                    (i "travel charging block")
                    (i "Whoop")
