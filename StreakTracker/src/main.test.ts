@@ -171,6 +171,55 @@ test('renaming a streak keeps its data and updates selection', async () => {
   }
 });
 
+test('when default streak is missing it selects the most recently updated streak', async () => {
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open('streak-tracker', 2);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('dayStates')) {
+        db.createObjectStore('dayStates');
+      }
+      if (!db.objectStoreNames.contains('streaks')) {
+        db.createObjectStore('streaks');
+      }
+    };
+    request.onerror = () => reject(request.error ?? new Error('open failed'));
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction(['dayStates', 'streaks'], 'readwrite');
+      const dayStore = tx.objectStore('dayStates');
+      dayStore.put(1, `${encodeURIComponent('Focus')}::2024-2-1`);
+      dayStore.put(1, `${encodeURIComponent('Side')}::2024-3-1`);
+      const streakStore = tx.objectStore('streaks');
+      streakStore.put(['Focus', 'Side'], 'names');
+      streakStore.put(
+        [
+          ['Focus', 1],
+          ['Side', 2],
+        ],
+        'lastUpdated',
+      );
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onabort = () => reject(tx.error ?? new Error('write aborted'));
+      tx.onerror = () => reject(tx.error ?? new Error('write failed'));
+    };
+  });
+
+  document.body.innerHTML = '<div id="calendars"></div>';
+  window.location.hash = '';
+  await setup();
+
+  const select = document.querySelector('#streak-select') as HTMLSelectElement;
+  const options = Array.from(select.options).map((option) => option.value);
+  expect(options).toContain('Side');
+  expect(options).toContain('Focus');
+  expect(options).not.toContain('My Streak');
+  expect(select.value).toBe('Side');
+});
+
 test('creating a streak uses a prompt and selects the new streak', async () => {
   const promptSpy = jest.spyOn(window, 'prompt').mockReturnValue('New Streak');
   try {

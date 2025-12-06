@@ -3,6 +3,7 @@ const DB_VERSION = 2;
 const STORE_NAME = 'dayStates';
 const STREAK_STORE = 'streaks';
 const STREAK_LIST_KEY = 'names';
+const LAST_UPDATED_KEY = 'lastUpdated';
 const DATE_KEY_PATTERN = /^\d{4}-\d{1,2}-\d{1,2}$/;
 const DAY_KEY_PATTERN = /^([^:]+)::(\d{4}-\d{1,2}-\d{1,2})$/;
 const DEFAULT_STREAK_NAME = 'My Streak';
@@ -21,8 +22,59 @@ function parseDayKey(key: string): { streak: string; dateKey: string } | null {
   return { streak: decodeURIComponent(match[1]), dateKey: match[2] };
 }
 
+function getLatestStateTimestamp(stateMap: Map<string, number>): number {
+  let latest = Number.NEGATIVE_INFINITY;
+  stateMap.forEach((_, dateKey) => {
+    if (DATE_KEY_PATTERN.test(dateKey)) {
+      const time = new Date(dateKey).getTime();
+      if (!Number.isNaN(time) && time > latest) {
+        latest = time;
+      }
+    }
+  });
+  return latest;
+}
+
+function getMostRecentlyUpdatedStreak(
+  streakStates: Map<string, Map<string, number>>,
+  lastUpdated: Map<string, number>,
+  fallbackNames: string[],
+): string | null {
+  let latestName: string | null = null;
+  let latestTimestamp = Number.NEGATIVE_INFINITY;
+
+  lastUpdated.forEach((timestamp, name) => {
+    if (timestamp >= latestTimestamp) {
+      latestTimestamp = timestamp;
+      latestName = name;
+    }
+  });
+
+  streakStates.forEach((stateMap, name) => {
+    const latest = getLatestStateTimestamp(stateMap);
+    if (latest >= latestTimestamp) {
+      latestTimestamp = latest;
+      latestName = name;
+    }
+  });
+
+  if (latestName !== null) {
+    return latestName;
+  }
+
+  for (let i = fallbackNames.length - 1; i >= 0; i -= 1) {
+    const name = normalizeStreakName(fallbackNames[i]);
+    if (name) {
+      return name;
+    }
+  }
+
+  const first = streakStates.keys().next();
+  return first.done ? null : first.value;
+}
+
 function getHashStreak(): string | null {
-  if (typeof window === 'undefined') {
+  if (typeof window === 'undefined' || !window.location) {
     return null;
   }
   const hash = window.location.hash.replace(/^#/, '');
@@ -37,7 +89,7 @@ function getHashStreak(): string | null {
 }
 
 function setHashStreak(streakName: string): void {
-  if (typeof window === 'undefined') {
+  if (typeof window === 'undefined' || !window.location) {
     return;
   }
   window.location.hash = encodeURIComponent(streakName);
@@ -136,6 +188,77 @@ async function saveStreakNames(db: IDBDatabase, names: string[]): Promise<void> 
 
 function normalizeStreakName(name: string): string {
   return name.trim() || DEFAULT_STREAK_NAME;
+}
+
+async function getLastUpdatedMap(db: IDBDatabase): Promise<Map<string, number>> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STREAK_STORE, 'readonly');
+    const store = tx.objectStore(STREAK_STORE);
+    const request = store.get(LAST_UPDATED_KEY);
+    request.onsuccess = () => {
+      const result = request.result;
+      if (Array.isArray(result)) {
+        const entries = result.filter(
+          (entry): entry is [string, number] =>
+            Array.isArray(entry) &&
+            entry.length === 2 &&
+            typeof entry[0] === 'string' &&
+            typeof entry[1] === 'number',
+        );
+        resolve(new Map(entries));
+      } else {
+        resolve(new Map());
+      }
+    };
+    request.onerror = () => {
+      reject(request.error ?? new Error('Failed to read last updated streaks'));
+    };
+  });
+}
+
+async function saveLastUpdatedMap(
+  db: IDBDatabase,
+  lastUpdated: Map<string, number>,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STREAK_STORE, 'readwrite');
+    const store = tx.objectStore(STREAK_STORE);
+    store.put(Array.from(lastUpdated.entries()), LAST_UPDATED_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Failed to save last updated streaks'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Failed to save last updated streaks'));
+    };
+  });
+}
+
+async function recordStreakActivity(
+  db: IDBDatabase,
+  lastUpdated: Map<string, number>,
+  streakName: string,
+  timestamp: number = Date.now(),
+): Promise<void> {
+  lastUpdated.set(streakName, timestamp);
+  await saveLastUpdatedMap(db, lastUpdated);
+}
+
+async function moveLastUpdatedEntry(
+  db: IDBDatabase,
+  lastUpdated: Map<string, number>,
+  oldName: string,
+  newName: string,
+): Promise<void> {
+  const previous = lastUpdated.get(oldName);
+  lastUpdated.delete(oldName);
+  const existing = lastUpdated.get(newName);
+  const nextTimestamp =
+    existing !== undefined
+      ? Math.max(existing, previous ?? Number.NEGATIVE_INFINITY, Date.now())
+      : previous ?? Date.now();
+  lastUpdated.set(newName, nextTimestamp);
+  await saveLastUpdatedMap(db, lastUpdated);
 }
 
 async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
@@ -517,6 +640,7 @@ function renderCalendars(
   now: Date,
   db: IDBDatabase,
   streakStates: Map<string, Map<string, number>>,
+  lastUpdated: Map<string, number>,
 ): void {
   container.innerHTML = '';
   const existingStateMap = streakStates.get(streakName);
@@ -673,6 +797,11 @@ function renderCalendars(
               console.error('Failed to save day state', error);
             }
           }
+          try {
+            await recordStreakActivity(db, lastUpdated, streakName);
+          } catch (error) {
+            console.error('Failed to update streak activity', error);
+          }
           updateStats();
         });
       }
@@ -708,16 +837,44 @@ export async function setup(): Promise<void> {
   } catch (error) {
     console.error('Failed to load streak names', error);
   }
+  const lastUpdated = await getLastUpdatedMap(db);
 
-  const namesSet = new Set<string>(storedNames.map(normalizeStreakName));
+  const normalizedStoredNames = storedNames.map(normalizeStreakName);
+  const namesSet = new Set<string>();
+  normalizedStoredNames.forEach((name) => namesSet.add(name));
   streakNamesFromStates.forEach((name) => namesSet.add(normalizeStreakName(name)));
 
-  let selectedStreak = normalizeStreakName(getHashStreak() ?? DEFAULT_STREAK_NAME);
+  const hashStreak = getHashStreak();
+  const normalizedHashStreak = hashStreak ? normalizeStreakName(hashStreak) : null;
+
+  let selectedStreak: string;
   if (namesSet.size === 0) {
-    namesSet.add(DEFAULT_STREAK_NAME);
-  }
-  if (!namesSet.has(selectedStreak)) {
-    namesSet.add(selectedStreak);
+    if (normalizedHashStreak) {
+      namesSet.add(DEFAULT_STREAK_NAME);
+      namesSet.add(normalizedHashStreak);
+      selectedStreak = normalizedHashStreak;
+    } else {
+      selectedStreak = DEFAULT_STREAK_NAME;
+      namesSet.add(DEFAULT_STREAK_NAME);
+    }
+  } else if (normalizedHashStreak) {
+    selectedStreak = normalizedHashStreak;
+    if (!namesSet.has(selectedStreak)) {
+      namesSet.add(selectedStreak);
+    }
+  } else {
+    const existingNames = Array.from(namesSet);
+    const mostRecent = getMostRecentlyUpdatedStreak(
+      streakStates,
+      lastUpdated,
+      [...normalizedStoredNames, ...Array.from(streakNamesFromStates)],
+    );
+    const fallbackName =
+      mostRecent ?? existingNames[existingNames.length - 1] ?? DEFAULT_STREAK_NAME;
+    selectedStreak = normalizeStreakName(fallbackName);
+    if (!namesSet.has(selectedStreak)) {
+      namesSet.add(selectedStreak);
+    }
   }
 
   let streakNames = Array.from(namesSet);
@@ -727,8 +884,14 @@ export async function setup(): Promise<void> {
     }
   });
 
+  const shouldRecordInitialActivity = !lastUpdated.has(selectedStreak);
   await saveStreakNames(db, streakNames);
-  setHashStreak(selectedStreak);
+  if (shouldRecordInitialActivity) {
+    await recordStreakActivity(db, lastUpdated, selectedStreak);
+  }
+  if (selectedStreak) {
+    setHashStreak(selectedStreak);
+  }
 
   const renderControls = () => {
     renderStreakControls(
@@ -738,7 +901,7 @@ export async function setup(): Promise<void> {
       (name) => {
         selectedStreak = normalizeStreakName(name);
         setHashStreak(selectedStreak);
-        renderCalendars(container, selectedStreak, now, db, streakStates);
+        renderCalendars(container, selectedStreak, now, db, streakStates, lastUpdated);
         renderControls();
       },
       async (rawName) => {
@@ -750,7 +913,8 @@ export async function setup(): Promise<void> {
         }
         selectedStreak = name;
         setHashStreak(selectedStreak);
-        renderCalendars(container, selectedStreak, now, db, streakStates);
+        await recordStreakActivity(db, lastUpdated, selectedStreak);
+        renderCalendars(container, selectedStreak, now, db, streakStates, lastUpdated);
         renderControls();
       },
       async (rawName) => {
@@ -760,11 +924,13 @@ export async function setup(): Promise<void> {
         }
         try {
           const name = normalizeStreakName(trimmed);
+          const previousName = selectedStreak;
           const result = await renameStreak(db, streakStates, streakNames, selectedStreak, name);
+          await moveLastUpdatedEntry(db, lastUpdated, previousName, result.selected);
           streakNames = result.names;
           selectedStreak = result.selected;
           setHashStreak(selectedStreak);
-          renderCalendars(container, selectedStreak, now, db, streakStates);
+          renderCalendars(container, selectedStreak, now, db, streakStates, lastUpdated);
           renderControls();
         } catch (error) {
           console.error('Failed to rename streak', error);
@@ -774,7 +940,7 @@ export async function setup(): Promise<void> {
   };
 
   renderControls();
-  renderCalendars(container, selectedStreak, now, db, streakStates);
+  renderCalendars(container, selectedStreak, now, db, streakStates, lastUpdated);
 }
 
 function registerServiceWorker() {
