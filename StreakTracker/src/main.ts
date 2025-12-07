@@ -428,6 +428,55 @@ async function removeDayState(db: IDBDatabase, streakName: string, dateKey: stri
   });
 }
 
+async function removeAllDayStates(db: IDBDatabase, streakName: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.openCursor();
+    request.onerror = () => {
+      reject(request.error ?? new Error('Failed to read state'));
+    };
+    request.onsuccess = (event) => {
+      const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+      if (cursor) {
+        if (typeof cursor.key === 'string') {
+          const parsed = parseDayKey(cursor.key);
+          if (parsed && parsed.streak === streakName) {
+            cursor.delete();
+          }
+        }
+        cursor.continue();
+      }
+    };
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Failed to remove streak data'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Failed to remove streak data'));
+    };
+  });
+}
+
+async function deleteStreak(
+  db: IDBDatabase,
+  streakStates: Map<string, Map<string, number>>,
+  lastUpdated: Map<string, number>,
+  streakNames: string[],
+  streakName: string,
+): Promise<string[]> {
+  const normalized = normalizeStreakName(streakName);
+  await removeAllDayStates(db, normalized);
+  streakStates.delete(normalized);
+  const nextNames = streakNames.filter((name) => name !== normalized);
+  await saveStreakNames(db, nextNames);
+  if (lastUpdated.has(normalized)) {
+    lastUpdated.delete(normalized);
+    await saveLastUpdatedMap(db, lastUpdated);
+  }
+  return nextNames;
+}
+
 async function renameStreak(
   db: IDBDatabase,
   streakStates: Map<string, Map<string, number>>,
@@ -555,6 +604,7 @@ function renderStreakControls(
   onSelect: (name: string) => void,
   onCreate: (name: string) => void,
   onRename: (name: string) => void,
+  onDelete: () => void,
 ): void {
   controlsContainer.innerHTML = '';
   controlsContainer.classList.add('streak-controls');
@@ -605,6 +655,17 @@ function renderStreakControls(
     }
   });
   pillsWrapper.appendChild(renameButton);
+
+  const deleteButton = document.createElement('button');
+  deleteButton.type = 'button';
+  deleteButton.className = 'icon-button streak-delete';
+  deleteButton.title = 'Delete streak';
+  deleteButton.setAttribute('aria-label', 'Delete selected streak');
+  deleteButton.textContent = '🗑';
+  deleteButton.addEventListener('click', () => {
+    onDelete();
+  });
+  pillsWrapper.appendChild(deleteButton);
   row.appendChild(pillsWrapper);
 
   const addContainer = document.createElement('div');
@@ -942,6 +1003,47 @@ export async function setup(): Promise<void> {
           renderControls();
         } catch (error) {
           console.error('Failed to rename streak', error);
+        }
+      },
+      async () => {
+        if (!selectedStreak) {
+          return;
+        }
+        const confirmed = window.confirm(
+          `Delete streak "${selectedStreak}"? This removes all data.`,
+        );
+        if (!confirmed) {
+          return;
+        }
+        try {
+          streakNames = await deleteStreak(db, streakStates, lastUpdated, streakNames, selectedStreak);
+
+          if (streakNames.length === 0) {
+            lastUpdated.clear();
+            await saveLastUpdatedMap(db, lastUpdated);
+            streakStates.clear();
+            selectedStreak = DEFAULT_STREAK_NAME;
+            streakStates.set(selectedStreak, new Map());
+            streakNames = [selectedStreak];
+            await saveStreakNames(db, streakNames);
+            await recordStreakActivity(db, lastUpdated, selectedStreak);
+          } else {
+            const next = getMostRecentlyUpdatedStreak(
+              streakStates,
+              lastUpdated,
+              streakNames,
+            );
+            selectedStreak = next ?? normalizeStreakName(streakNames[0]);
+            if (!lastUpdated.has(selectedStreak)) {
+              await recordStreakActivity(db, lastUpdated, selectedStreak);
+            }
+          }
+
+          setHashStreak(selectedStreak);
+          renderCalendars(container, selectedStreak, now, db, streakStates, lastUpdated);
+          renderControls();
+        } catch (error) {
+          console.error('Failed to delete streak', error);
         }
       },
     );

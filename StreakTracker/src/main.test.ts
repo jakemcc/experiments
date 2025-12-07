@@ -252,6 +252,101 @@ test('creating a streak uses a prompt and selects the new streak', async () => {
   }
 });
 
+test('deleting a streak removes its data and selects a remaining streak', async () => {
+  const promptSpy = jest.spyOn(window, 'prompt').mockReturnValue('Work');
+  const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+
+    const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
+    addButton.click();
+    await flushAsyncOperations();
+
+    const workButton = Array.from(document.querySelectorAll('.streak-pill')).find(
+      (el) => el.textContent === 'Work'
+    ) as HTMLButtonElement;
+    workButton.click();
+    await flushAsyncOperations();
+
+    const workDayOne = Array.from(document.querySelectorAll('.day')).find(
+      (c) => c.textContent === '1'
+    ) as HTMLElement;
+    workDayOne.click();
+    await flushAsyncOperations();
+
+    const deleteButton = document.querySelector('.streak-delete') as HTMLButtonElement;
+    deleteButton.click();
+    await flushAsyncOperations();
+
+    await waitForCondition(() => {
+      const pills = Array.from(document.querySelectorAll('.streak-pill')) as HTMLButtonElement[];
+      return pills.every((pill) => pill.textContent !== 'Work');
+    });
+    const active = document.querySelector('.streak-pill[aria-pressed="true"]') as
+      | HTMLButtonElement
+      | null;
+    expect(active?.textContent).toBe('My Streak');
+
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+    const pillsAfter = Array.from(document.querySelectorAll('.streak-pill')).map(
+      (pill) => (pill as HTMLButtonElement).textContent
+    );
+    expect(pillsAfter).not.toContain('Work');
+    const dayOne = Array.from(document.querySelectorAll('.day')).find(
+      (c) => c.textContent === '1'
+    ) as HTMLElement;
+    expect(dayOne.classList.contains('red')).toBe(false);
+  } finally {
+    promptSpy.mockRestore();
+    confirmSpy.mockRestore();
+  }
+});
+
+test('deleting the last streak resets to a fresh default streak', async () => {
+  const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+
+    const dayOne = Array.from(document.querySelectorAll('.day')).find(
+      (c) => c.textContent === '1'
+    ) as HTMLElement;
+    dayOne.click();
+    await flushAsyncOperations();
+
+    const deleteButton = document.querySelector('.streak-delete') as HTMLButtonElement;
+    deleteButton.click();
+    await flushAsyncOperations();
+
+    await waitForCondition(() => {
+      const active = document.querySelector('.streak-pill[aria-pressed="true"]') as
+        | HTMLButtonElement
+        | null;
+      return active?.textContent === 'My Streak';
+    });
+    expect(window.location.hash).toBe('#My%20Streak');
+
+    const pills = Array.from(document.querySelectorAll('.streak-pill')).map(
+      (pill) => (pill as HTMLButtonElement).textContent
+    );
+    expect(pills).toEqual(['My Streak']);
+    await waitForCondition(() => {
+      const cell = Array.from(document.querySelectorAll('.day')).find(
+        (c) => c.textContent === '1'
+      ) as HTMLElement;
+      return cell !== undefined && !cell.classList.contains('red');
+    });
+    const dayOneAfter = Array.from(document.querySelectorAll('.day')).find(
+      (c) => c.textContent === '1'
+    ) as HTMLElement;
+    expect(dayOneAfter.classList.contains('red')).toBe(false);
+  } finally {
+    confirmSpy.mockRestore();
+  }
+});
+
 test('legacy unscoped data is migrated into the default streak', async () => {
   const restoreDate = mockDate('2024-02-10T00:00:00Z');
   document.body.innerHTML = '<div id="calendars"></div>';
