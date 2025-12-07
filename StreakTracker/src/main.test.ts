@@ -263,9 +263,14 @@ test('deleting a streak removes its data and selects a remaining streak', async 
     addButton.click();
     await flushAsyncOperations();
 
-    const workButton = Array.from(document.querySelectorAll('.streak-pill')).find(
-      (el) => el.textContent === 'Work'
-    ) as HTMLButtonElement;
+    const workButton = await (async () => {
+      await waitForCondition(() =>
+        Array.from(document.querySelectorAll('.streak-pill')).some((el) => el.textContent === 'Work')
+      );
+      return Array.from(document.querySelectorAll('.streak-pill')).find(
+        (el) => el.textContent === 'Work'
+      ) as HTMLButtonElement;
+    })();
     workButton.click();
     await flushAsyncOperations();
 
