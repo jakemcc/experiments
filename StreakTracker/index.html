@@ -34,9 +34,41 @@
       align-items: center;
       gap: 0.35rem;
       width: 100%;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      padding-bottom: 2px;
+      flex-wrap: wrap;
+      padding-bottom: 4px;
+    }
+    .streak-pills {
+      display: flex;
+      flex: 1 1 auto;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      align-items: flex-start;
+      min-width: 200px;
+    }
+    .streak-pills__list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .streak-pill {
+      padding: 0.35rem 0.6rem;
+      border-radius: 6px;
+      border: 1px solid #cfd8dc;
+      background: #f5f8fa;
+      color: #1a2a3a;
+      cursor: pointer;
+      transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+    }
+    .streak-pill:hover {
+      background: #e8f1ff;
+      border-color: #90caf9;
+    }
+    .streak-pill--active {
+      background: #1976d2;
+      border-color: #1976d2;
+      color: #fff;
+      box-shadow: 0 2px 4px rgba(25, 118, 210, 0.35);
     }
     #streak-controls select,
     #streak-controls button {

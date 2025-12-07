@@ -121,9 +121,10 @@ test('streak selection uses URL hash and keeps calendars separate', async () => 
   await flushAsyncOperations();
   expect(window.location.hash).toBe('#Work');
 
-  const select = document.querySelector('#streak-controls select') as HTMLSelectElement;
-  select.value = 'My Streak';
-  select.dispatchEvent(new Event('change'));
+  const myStreakButton = Array.from(document.querySelectorAll('.streak-pill')).find(
+    (el) => el.textContent === 'My Streak'
+  ) as HTMLButtonElement;
+  myStreakButton.click();
   await flushAsyncOperations();
 
   const defaultCell = getCell('1');
@@ -131,8 +132,10 @@ test('streak selection uses URL hash and keeps calendars separate', async () => 
   defaultCell.click();
   await flushAsyncOperations();
 
-  select.value = 'Work';
-  select.dispatchEvent(new Event('change'));
+  const workButton = Array.from(document.querySelectorAll('.streak-pill')).find(
+    (el) => el.textContent === 'Work'
+  ) as HTMLButtonElement;
+  workButton.click();
   await flushAsyncOperations();
 
   const workCellAgain = getCell('1');
@@ -155,8 +158,10 @@ test('renaming a streak keeps its data and updates selection', async () => {
     await flushAsyncOperations();
 
     await waitForCondition(() => {
-      const select = document.querySelector('#streak-select') as HTMLSelectElement | null;
-      return select?.value === 'Renamed';
+      const active = document.querySelector('.streak-pill[aria-pressed="true"]') as
+        | HTMLButtonElement
+        | null;
+      return active?.textContent === 'Renamed';
     });
     expect(window.location.hash).toBe('#Renamed');
 
@@ -212,12 +217,13 @@ test('when default streak is missing it selects the most recently updated streak
   window.location.hash = '';
   await setup();
 
-  const select = document.querySelector('#streak-select') as HTMLSelectElement;
-  const options = Array.from(select.options).map((option) => option.value);
+  const pills = Array.from(document.querySelectorAll('.streak-pill')) as HTMLButtonElement[];
+  const options = pills.map((pill) => pill.textContent);
   expect(options).toContain('Side');
   expect(options).toContain('Focus');
   expect(options).not.toContain('My Streak');
-  expect(select.value).toBe('Side');
+  const active = pills.find((pill) => pill.getAttribute('aria-pressed') === 'true');
+  expect(active?.textContent).toBe('Side');
 });
 
 test('creating a streak uses a prompt and selects the new streak', async () => {
@@ -231,11 +237,15 @@ test('creating a streak uses a prompt and selects the new streak', async () => {
     await flushAsyncOperations();
 
     await waitForCondition(() => {
-      const select = document.querySelector('#streak-select') as HTMLSelectElement | null;
-      return select?.value === 'New Streak';
+      const active = document.querySelector('.streak-pill[aria-pressed="true"]') as
+        | HTMLButtonElement
+        | null;
+      return active?.textContent === 'New Streak';
     });
-    const select = document.querySelector('#streak-select') as HTMLSelectElement;
-    expect(Array.from(select.options).map((option) => option.value)).toContain('New Streak');
+    const pills = Array.from(document.querySelectorAll('.streak-pill')).map(
+      (pill) => (pill as HTMLButtonElement).textContent
+    );
+    expect(pills).toContain('New Streak');
     expect(window.location.hash).toBe('#New%20Streak');
   } finally {
     promptSpy.mockRestore();

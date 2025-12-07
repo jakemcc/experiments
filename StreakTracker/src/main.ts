@@ -562,28 +562,36 @@ function renderStreakControls(
   const row = document.createElement('div');
   row.className = 'streak-controls__row';
 
-  const selectWrapper = document.createElement('div');
-  selectWrapper.className = 'streak-select';
-  const selectLabel = document.createElement('label');
-  selectLabel.textContent = 'Choose a streak';
-  selectLabel.className = 'sr-only';
-  selectLabel.htmlFor = 'streak-select';
-  const select = document.createElement('select');
-  select.id = 'streak-select';
+  const pillsWrapper = document.createElement('div');
+  pillsWrapper.className = 'streak-pills';
+  const pillsLabel = document.createElement('span');
+  pillsLabel.className = 'sr-only';
+  pillsLabel.id = 'streak-pills-label';
+  pillsLabel.textContent = 'Choose a streak';
+  pillsWrapper.appendChild(pillsLabel);
+  const pillsList = document.createElement('div');
+  pillsList.className = 'streak-pills__list';
+  pillsList.setAttribute('role', 'group');
+  pillsList.setAttribute('aria-labelledby', 'streak-pills-label');
   streakNames.forEach((name) => {
-    const option = document.createElement('option');
-    option.value = name;
-    option.textContent = name;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'streak-pill';
     if (name === selectedStreak) {
-      option.selected = true;
+      button.classList.add('streak-pill--active');
+      button.setAttribute('aria-pressed', 'true');
+    } else {
+      button.setAttribute('aria-pressed', 'false');
     }
-    select.appendChild(option);
+    button.textContent = name;
+    button.addEventListener('click', () => {
+      if (name !== selectedStreak) {
+        onSelect(name);
+      }
+    });
+    pillsList.appendChild(button);
   });
-  select.addEventListener('change', () => {
-    onSelect(select.value);
-  });
-  selectWrapper.appendChild(selectLabel);
-  selectWrapper.appendChild(select);
+  pillsWrapper.appendChild(pillsList);
   const renameButton = document.createElement('button');
   renameButton.type = 'button';
   renameButton.className = 'icon-button streak-rename';
@@ -596,8 +604,8 @@ function renderStreakControls(
       onRename(proposed);
     }
   });
-  selectWrapper.appendChild(renameButton);
-  row.appendChild(selectWrapper);
+  pillsWrapper.appendChild(renameButton);
+  row.appendChild(pillsWrapper);
 
   const addContainer = document.createElement('div');
   addContainer.className = 'streak-add';
