@@ -8,6 +8,15 @@ const DATE_KEY_PATTERN = /^\d{4}-\d{1,2}-\d{1,2}$/;
 const DAY_KEY_PATTERN = /^([^:]+)::(\d{4}-\d{1,2}-\d{1,2})$/;
 const DEFAULT_STREAK_NAME = 'My Streak';
 
+const DAY_STATES = {
+  None: 0,
+  Red: 1,
+  Green: 2,
+  Blue: 3,
+} as const;
+
+type DayState = (typeof DAY_STATES)[keyof typeof DAY_STATES];
+
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 function buildDayKey(streakName: string, dateKey: string): string {
@@ -22,21 +31,42 @@ function parseDayKey(key: string): { streak: string; dateKey: string } | null {
   return { streak: decodeURIComponent(match[1]), dateKey: match[2] };
 }
 
-function getLatestStateTimestamp(stateMap: Map<string, number>): number {
+function parseDateKey(dateKey: string): { year: number; month: number; day: number } | null {
+  if (!DATE_KEY_PATTERN.test(dateKey)) {
+    return null;
+  }
+  const [yearStr, monthStr, dayStr] = dateKey.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  if ([year, month, day].some((value) => Number.isNaN(value))) {
+    return null;
+  }
+  return { year, month, day };
+}
+
+function dateKeyToTime(dateKey: string): number | null {
+  const parsed = parseDateKey(dateKey);
+  if (!parsed) {
+    return null;
+  }
+  const time = new Date(parsed.year, parsed.month - 1, parsed.day).getTime();
+  return Number.isNaN(time) ? null : time;
+}
+
+function getLatestStateTimestamp(stateMap: Map<string, DayState>): number {
   let latest = Number.NEGATIVE_INFINITY;
   stateMap.forEach((_, dateKey) => {
-    if (DATE_KEY_PATTERN.test(dateKey)) {
-      const time = new Date(dateKey).getTime();
-      if (!Number.isNaN(time) && time > latest) {
-        latest = time;
-      }
+    const time = dateKeyToTime(dateKey);
+    if (time !== null && time > latest) {
+      latest = time;
     }
   });
   return latest;
 }
 
 function getMostRecentlyUpdatedStreak(
-  streakStates: Map<string, Map<string, number>>,
+  streakStates: Map<string, Map<string, DayState>>,
   lastUpdated: Map<string, number>,
   fallbackNames: string[],
 ): string | null {
@@ -262,7 +292,7 @@ async function moveLastUpdatedEntry(
 }
 
 async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
-  const entries: { key: string; state: number }[] = [];
+  const entries: { key: string; state: DayState }[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
     if (!key || !DATE_KEY_PATTERN.test(key)) {
@@ -270,10 +300,10 @@ async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
     }
     const value = localStorage.getItem(key);
     const state = Number(value);
-    if (!Number.isFinite(state) || state <= 0) {
+    if (!Number.isFinite(state) || state <= 0 || state > DAY_STATES.Blue) {
       continue;
     }
-    entries.push({ key, state });
+    entries.push({ key, state: state as DayState });
   }
 
   if (entries.length === 0) {
@@ -302,7 +332,7 @@ async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
 }
 
 async function migrateUnscopedDayStates(db: IDBDatabase): Promise<void> {
-  const legacyEntries: { key: string; state: number }[] = [];
+  const legacyEntries: { key: string; state: DayState }[] = [];
 
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
@@ -316,7 +346,10 @@ async function migrateUnscopedDayStates(db: IDBDatabase): Promise<void> {
       if (cursor) {
         if (typeof cursor.key === 'string' && typeof cursor.value === 'number') {
           if (DATE_KEY_PATTERN.test(cursor.key)) {
-            legacyEntries.push({ key: cursor.key, state: cursor.value });
+            const state = cursor.value;
+            if (state > DAY_STATES.None && state <= DAY_STATES.Blue) {
+              legacyEntries.push({ key: cursor.key, state: state as DayState });
+            }
           }
         }
         cursor.continue();
@@ -354,9 +387,9 @@ async function migrateUnscopedDayStates(db: IDBDatabase): Promise<void> {
 
 async function getAllDayStates(
   db: IDBDatabase,
-): Promise<{ streakStates: Map<string, Map<string, number>>; streakNames: Set<string> }>
+): Promise<{ streakStates: Map<string, Map<string, DayState>>; streakNames: Set<string> }>
 {
-  const streakStates = new Map<string, Map<string, number>>();
+  const streakStates = new Map<string, Map<string, DayState>>();
   const streakNames = new Set<string>();
 
   await new Promise<void>((resolve, reject) => {
@@ -373,8 +406,11 @@ async function getAllDayStates(
           const parsed = parseDayKey(cursor.key);
           if (parsed) {
             streakNames.add(parsed.streak);
-            const streakMap = streakStates.get(parsed.streak) ?? new Map<string, number>();
-            streakMap.set(parsed.dateKey, cursor.value);
+            const streakMap = streakStates.get(parsed.streak) ?? new Map<string, DayState>();
+            const state = cursor.value;
+            if (state > DAY_STATES.None && state <= DAY_STATES.Blue) {
+              streakMap.set(parsed.dateKey, state as DayState);
+            }
             streakStates.set(parsed.streak, streakMap);
           }
         }
@@ -397,7 +433,7 @@ async function setDayState(
   db: IDBDatabase,
   streakName: string,
   dateKey: string,
-  state: number,
+  state: DayState,
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -460,7 +496,7 @@ async function removeAllDayStates(db: IDBDatabase, streakName: string): Promise<
 
 async function deleteStreak(
   db: IDBDatabase,
-  streakStates: Map<string, Map<string, number>>,
+  streakStates: Map<string, Map<string, DayState>>,
   lastUpdated: Map<string, number>,
   streakNames: string[],
   streakName: string,
@@ -479,7 +515,7 @@ async function deleteStreak(
 
 async function renameStreak(
   db: IDBDatabase,
-  streakStates: Map<string, Map<string, number>>,
+  streakStates: Map<string, Map<string, DayState>>,
   streakNames: string[],
   oldName: string,
   desiredName: string,
@@ -490,9 +526,9 @@ async function renameStreak(
     return { names: streakNames, selected: currentName };
   }
 
-  const oldStates = streakStates.get(currentName) ?? new Map<string, number>();
-  const mergedStates = new Map<string, number>(
-    streakStates.get(newName) ?? new Map<string, number>(),
+  const oldStates = streakStates.get(currentName) ?? new Map<string, DayState>();
+  const mergedStates = new Map<string, DayState>(
+    streakStates.get(newName) ?? new Map<string, DayState>(),
   );
   oldStates.forEach((state, dateKey) => {
     if (!mergedStates.has(dateKey)) {
@@ -542,7 +578,7 @@ async function renameStreak(
 
 function getStoredMonths(
   now: Date,
-  stateMap: Map<string, number>,
+  stateMap: Map<string, DayState>,
 ): { year: number; month: number }[] {
   const months = new Set<string>();
   stateMap.forEach((_, key) => {
@@ -708,12 +744,12 @@ function renderCalendars(
   streakName: string,
   now: Date,
   db: IDBDatabase,
-  streakStates: Map<string, Map<string, number>>,
+  streakStates: Map<string, Map<string, DayState>>,
   lastUpdated: Map<string, number>,
 ): void {
   container.innerHTML = '';
   const existingStateMap = streakStates.get(streakName);
-  const stateMap = existingStateMap ?? new Map<string, number>();
+  const stateMap = existingStateMap ?? new Map<string, DayState>();
   if (!existingStateMap) {
     streakStates.set(streakName, stateMap);
   }
@@ -738,7 +774,7 @@ function renderCalendars(
     const stats = document.createElement('p');
     stats.className = 'stats';
 
-    const monthState = new Map<number, number>();
+    const monthState = new Map<number, DayState>();
     stateMap.forEach((state, key) => {
       const [yStr, mStr, dStr] = key.split('-');
       const y = Number(yStr);
@@ -778,8 +814,8 @@ function renderCalendars(
       let currentGreenBlueStreak = 0;
       let longestGreenBlueStreak = 0;
       for (let day = 1; day <= daysPassed; day++) {
-        const state = monthState.get(day) ?? 0;
-        if (state === 1) {
+        const state = monthState.get(day) ?? DAY_STATES.None;
+        if (state === DAY_STATES.Red) {
           colorCounts.red++;
           currentStreaks.red++;
           currentStreaks.green = 0;
@@ -788,7 +824,7 @@ function renderCalendars(
           if (currentStreaks.red > longestStreaks.red) {
             longestStreaks.red = currentStreaks.red;
           }
-        } else if (state === 2) {
+        } else if (state === DAY_STATES.Green) {
           colorCounts.green++;
           currentStreaks.green++;
           currentStreaks.red = 0;
@@ -800,7 +836,7 @@ function renderCalendars(
           if (currentStreaks.green > longestStreaks.green) {
             longestStreaks.green = currentStreaks.green;
           }
-        } else if (state === 3) {
+        } else if (state === DAY_STATES.Blue) {
           colorCounts.blue++;
           currentStreaks.blue++;
           currentStreaks.red = 0;
@@ -834,22 +870,22 @@ function renderCalendars(
       if (value !== null) {
         cell.textContent = String(value);
         const dateKey = `${year}-${month}-${value}`;
-        let state = monthState.get(value) ?? 0;
-        const applyState = (s: number) => {
+        let state = monthState.get(value) ?? DAY_STATES.None;
+        const applyState = (s: DayState) => {
           cell.classList.remove('red', 'green', 'blue');
-          if (s === 1) {
+          if (s === DAY_STATES.Red) {
             cell.classList.add('red');
-          } else if (s === 2) {
+          } else if (s === DAY_STATES.Green) {
             cell.classList.add('green');
-          } else if (s === 3) {
+          } else if (s === DAY_STATES.Blue) {
             cell.classList.add('blue');
           }
         };
         applyState(state);
         cell.addEventListener('click', async () => {
-          state = (state + 1) % 4;
+          state = ((state + 1) % 4) as DayState;
           applyState(state);
-          if (state === 0) {
+          if (state === DAY_STATES.None) {
             monthState.delete(value);
             stateMap.delete(dateKey);
             try {
