@@ -34,6 +34,92 @@ function applyDayStateClass(cell: HTMLElement, state: DayState): void {
   }
 }
 
+function computeMonthStats(
+  now: Date,
+  year: number,
+  month: number,
+  monthState: Map<number, DayState>,
+): string[] {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let daysPassed = 0;
+  if (year === now.getFullYear() && month === now.getMonth() + 1) {
+    daysPassed = now.getDate();
+  } else if (
+    year < now.getFullYear() ||
+    (year === now.getFullYear() && month < now.getMonth() + 1)
+  ) {
+    daysPassed = daysInMonth;
+  }
+
+  const colorCounts = {
+    red: 0,
+    green: 0,
+    blue: 0,
+  };
+  const currentStreaks = {
+    red: 0,
+    green: 0,
+    blue: 0,
+  };
+  const longestStreaks = {
+    red: 0,
+    green: 0,
+    blue: 0,
+  };
+
+  let currentGreenBlueStreak = 0;
+  let longestGreenBlueStreak = 0;
+  for (let day = 1; day <= daysPassed; day++) {
+    const state = monthState.get(day) ?? DAY_STATES.None;
+    if (state === DAY_STATES.Red) {
+      colorCounts.red += 1;
+      currentStreaks.red += 1;
+      currentStreaks.green = 0;
+      currentStreaks.blue = 0;
+      currentGreenBlueStreak = 0;
+      if (currentStreaks.red > longestStreaks.red) {
+        longestStreaks.red = currentStreaks.red;
+      }
+    } else if (state === DAY_STATES.Green) {
+      colorCounts.green += 1;
+      currentStreaks.green += 1;
+      currentStreaks.red = 0;
+      currentStreaks.blue = 0;
+      currentGreenBlueStreak += 1;
+      if (currentGreenBlueStreak > longestGreenBlueStreak) {
+        longestGreenBlueStreak = currentGreenBlueStreak;
+      }
+      if (currentStreaks.green > longestStreaks.green) {
+        longestStreaks.green = currentStreaks.green;
+      }
+    } else if (state === DAY_STATES.Blue) {
+      colorCounts.blue += 1;
+      currentStreaks.blue += 1;
+      currentStreaks.red = 0;
+      currentStreaks.green = 0;
+      currentGreenBlueStreak += 1;
+      if (currentGreenBlueStreak > longestGreenBlueStreak) {
+        longestGreenBlueStreak = currentGreenBlueStreak;
+      }
+      if (currentStreaks.blue > longestStreaks.blue) {
+        longestStreaks.blue = currentStreaks.blue;
+      }
+    } else {
+      currentStreaks.red = 0;
+      currentStreaks.green = 0;
+      currentStreaks.blue = 0;
+      currentGreenBlueStreak = 0;
+    }
+  }
+
+  return [
+    `Green days: ${colorCounts.green}/${daysPassed}, Longest green streak: ${longestStreaks.green}`,
+    `Red days: ${colorCounts.red}/${daysPassed}, Longest red streak: ${longestStreaks.red}`,
+    `Blue days: ${colorCounts.blue}/${daysPassed}, Longest blue streak: ${longestStreaks.blue}`,
+    `Longest green or blue streak: ${longestGreenBlueStreak}`,
+  ];
+}
+
 function buildDayKey(streakName: string, dateKey: string): string {
   return `${encodeURIComponent(streakName)}::${dateKey}`;
 }
@@ -814,81 +900,7 @@ function renderCalendars(
     });
 
     const updateStats = () => {
-      const daysInMonth = new Date(year, month, 0).getDate();
-      let daysPassed = 0;
-      if (year === now.getFullYear() && month === now.getMonth() + 1) {
-        daysPassed = now.getDate();
-      } else if (
-        year < now.getFullYear() ||
-        (year === now.getFullYear() && month < now.getMonth() + 1)
-      ) {
-        daysPassed = daysInMonth;
-      }
-      const colorCounts = {
-        red: 0,
-        green: 0,
-        blue: 0,
-      };
-      const currentStreaks = {
-        red: 0,
-        green: 0,
-        blue: 0,
-      };
-      const longestStreaks = {
-        red: 0,
-        green: 0,
-        blue: 0,
-      };
-      let currentGreenBlueStreak = 0;
-      let longestGreenBlueStreak = 0;
-      for (let day = 1; day <= daysPassed; day++) {
-        const state = monthState.get(day) ?? DAY_STATES.None;
-        if (state === DAY_STATES.Red) {
-          colorCounts.red++;
-          currentStreaks.red++;
-          currentStreaks.green = 0;
-          currentStreaks.blue = 0;
-          currentGreenBlueStreak = 0;
-          if (currentStreaks.red > longestStreaks.red) {
-            longestStreaks.red = currentStreaks.red;
-          }
-        } else if (state === DAY_STATES.Green) {
-          colorCounts.green++;
-          currentStreaks.green++;
-          currentStreaks.red = 0;
-          currentStreaks.blue = 0;
-          currentGreenBlueStreak++;
-          if (currentGreenBlueStreak > longestGreenBlueStreak) {
-            longestGreenBlueStreak = currentGreenBlueStreak;
-          }
-          if (currentStreaks.green > longestStreaks.green) {
-            longestStreaks.green = currentStreaks.green;
-          }
-        } else if (state === DAY_STATES.Blue) {
-          colorCounts.blue++;
-          currentStreaks.blue++;
-          currentStreaks.red = 0;
-          currentStreaks.green = 0;
-          currentGreenBlueStreak++;
-          if (currentGreenBlueStreak > longestGreenBlueStreak) {
-            longestGreenBlueStreak = currentGreenBlueStreak;
-          }
-          if (currentStreaks.blue > longestStreaks.blue) {
-            longestStreaks.blue = currentStreaks.blue;
-          }
-        } else {
-          currentStreaks.red = 0;
-          currentStreaks.green = 0;
-          currentStreaks.blue = 0;
-          currentGreenBlueStreak = 0;
-        }
-      }
-      stats.innerHTML = [
-        `Green days: ${colorCounts.green}/${daysPassed}, Longest green streak: ${longestStreaks.green}`,
-        `Red days: ${colorCounts.red}/${daysPassed}, Longest red streak: ${longestStreaks.red}`,
-        `Blue days: ${colorCounts.blue}/${daysPassed}, Longest blue streak: ${longestStreaks.blue}`,
-        `Longest green or blue streak: ${longestGreenBlueStreak}`,
-      ].join('<br>');
+      stats.innerHTML = computeMonthStats(now, year, month, monthState).join('<br>');
     };
 
     const cells = generateCalendar(year, month - 1);
