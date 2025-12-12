@@ -292,23 +292,26 @@ function transactionDone(tx: IDBTransaction, errorMessage: string): Promise<void
   });
 }
 
-async function getStoredStreakNames(db: IDBDatabase): Promise<string[]> {
+function storeGet<T>(
+  store: IDBObjectStore,
+  key: IDBValidKey,
+  errorMessage: string,
+): Promise<T | undefined> {
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STREAK_STORE, 'readonly');
-    const store = tx.objectStore(STREAK_STORE);
-    const request = store.get(STREAK_LIST_KEY);
-    request.onsuccess = () => {
-      const result = request.result;
-      if (Array.isArray(result)) {
-        resolve(result.filter((item) => typeof item === 'string'));
-      } else {
-        resolve([]);
-      }
-    };
-    request.onerror = () => {
-      reject(request.error ?? new Error('Failed to load streak names'));
-    };
+    const request = store.get(key);
+    request.onsuccess = () => resolve(request.result as T | undefined);
+    request.onerror = () => reject(request.error ?? new Error(errorMessage));
   });
+}
+
+async function getStoredStreakNames(db: IDBDatabase): Promise<string[]> {
+  const tx = db.transaction(STREAK_STORE, 'readonly');
+  const store = tx.objectStore(STREAK_STORE);
+  const result = await storeGet<unknown>(store, STREAK_LIST_KEY, 'Failed to load streak names');
+  if (Array.isArray(result)) {
+    return result.filter((item): item is string => typeof item === 'string');
+  }
+  return [];
 }
 
 async function saveStreakNames(db: IDBDatabase, names: string[]): Promise<void> {
@@ -367,29 +370,20 @@ function selectInitialStreak(
 }
 
 async function getLastUpdatedMap(db: IDBDatabase): Promise<Map<string, number>> {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STREAK_STORE, 'readonly');
-    const store = tx.objectStore(STREAK_STORE);
-    const request = store.get(LAST_UPDATED_KEY);
-    request.onsuccess = () => {
-      const result = request.result;
-      if (Array.isArray(result)) {
-        const entries = result.filter(
-          (entry): entry is [string, number] =>
-            Array.isArray(entry) &&
-            entry.length === 2 &&
-            typeof entry[0] === 'string' &&
-            typeof entry[1] === 'number',
-        );
-        resolve(new Map(entries));
-      } else {
-        resolve(new Map());
-      }
-    };
-    request.onerror = () => {
-      reject(request.error ?? new Error('Failed to read last updated streaks'));
-    };
-  });
+  const tx = db.transaction(STREAK_STORE, 'readonly');
+  const store = tx.objectStore(STREAK_STORE);
+  const result = await storeGet<unknown>(store, LAST_UPDATED_KEY, 'Failed to read last updated streaks');
+  if (Array.isArray(result)) {
+    const entries = result.filter(
+      (entry): entry is [string, number] =>
+        Array.isArray(entry) &&
+        entry.length === 2 &&
+        typeof entry[0] === 'string' &&
+        typeof entry[1] === 'number',
+    );
+    return new Map(entries);
+  }
+  return new Map();
 }
 
 async function saveLastUpdatedMap(
