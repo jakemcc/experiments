@@ -182,6 +182,15 @@ function getDb(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
+function transactionDone(tx: IDBTransaction, errorMessage: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    const fail = () => reject(tx.error ?? new Error(errorMessage));
+    tx.onabort = fail;
+    tx.onerror = fail;
+  });
+}
+
 async function getStoredStreakNames(db: IDBDatabase): Promise<string[]> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STREAK_STORE, 'readonly');
@@ -202,18 +211,10 @@ async function getStoredStreakNames(db: IDBDatabase): Promise<string[]> {
 }
 
 async function saveStreakNames(db: IDBDatabase, names: string[]): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STREAK_STORE, 'readwrite');
-    const store = tx.objectStore(STREAK_STORE);
-    store.put(names, STREAK_LIST_KEY);
-    tx.oncomplete = () => resolve();
-    tx.onabort = () => {
-      reject(tx.error ?? new Error('Failed to save streak names'));
-    };
-    tx.onerror = () => {
-      reject(tx.error ?? new Error('Failed to save streak names'));
-    };
-  });
+  const tx = db.transaction(STREAK_STORE, 'readwrite');
+  const store = tx.objectStore(STREAK_STORE);
+  store.put(names, STREAK_LIST_KEY);
+  await transactionDone(tx, 'Failed to save streak names');
 }
 
 function normalizeStreakName(name: string): string {
@@ -250,18 +251,10 @@ async function saveLastUpdatedMap(
   db: IDBDatabase,
   lastUpdated: Map<string, number>,
 ): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STREAK_STORE, 'readwrite');
-    const store = tx.objectStore(STREAK_STORE);
-    store.put(Array.from(lastUpdated.entries()), LAST_UPDATED_KEY);
-    tx.oncomplete = () => resolve();
-    tx.onabort = () => {
-      reject(tx.error ?? new Error('Failed to save last updated streaks'));
-    };
-    tx.onerror = () => {
-      reject(tx.error ?? new Error('Failed to save last updated streaks'));
-    };
-  });
+  const tx = db.transaction(STREAK_STORE, 'readwrite');
+  const store = tx.objectStore(STREAK_STORE);
+  store.put(Array.from(lastUpdated.entries()), LAST_UPDATED_KEY);
+  await transactionDone(tx, 'Failed to save last updated streaks');
 }
 
 async function recordStreakActivity(
@@ -435,33 +428,17 @@ async function setDayState(
   dateKey: string,
   state: DayState,
 ): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    store.put(state, buildDayKey(streakName, dateKey));
-    tx.oncomplete = () => resolve();
-    tx.onabort = () => {
-      reject(tx.error ?? new Error('Failed to save state'));
-    };
-    tx.onerror = () => {
-      reject(tx.error ?? new Error('Failed to save state'));
-    };
-  });
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  const store = tx.objectStore(STORE_NAME);
+  store.put(state, buildDayKey(streakName, dateKey));
+  await transactionDone(tx, 'Failed to save state');
 }
 
 async function removeDayState(db: IDBDatabase, streakName: string, dateKey: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    store.delete(buildDayKey(streakName, dateKey));
-    tx.oncomplete = () => resolve();
-    tx.onabort = () => {
-      reject(tx.error ?? new Error('Failed to remove state'));
-    };
-    tx.onerror = () => {
-      reject(tx.error ?? new Error('Failed to remove state'));
-    };
-  });
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  const store = tx.objectStore(STORE_NAME);
+  store.delete(buildDayKey(streakName, dateKey));
+  await transactionDone(tx, 'Failed to remove state');
 }
 
 async function removeAllDayStates(db: IDBDatabase, streakName: string): Promise<void> {
@@ -536,23 +513,15 @@ async function renameStreak(
     }
   });
 
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    oldStates.forEach((_, dateKey) => {
-      store.delete(buildDayKey(currentName, dateKey));
-    });
-    mergedStates.forEach((state, dateKey) => {
-      store.put(state, buildDayKey(newName, dateKey));
-    });
-    tx.oncomplete = () => resolve();
-    tx.onabort = () => {
-      reject(tx.error ?? new Error('Failed to rename streak data'));
-    };
-    tx.onerror = () => {
-      reject(tx.error ?? new Error('Failed to rename streak data'));
-    };
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  const store = tx.objectStore(STORE_NAME);
+  oldStates.forEach((_, dateKey) => {
+    store.delete(buildDayKey(currentName, dateKey));
   });
+  mergedStates.forEach((state, dateKey) => {
+    store.put(state, buildDayKey(newName, dateKey));
+  });
+  await transactionDone(tx, 'Failed to rename streak data');
 
   streakStates.set(newName, mergedStates);
   streakStates.delete(currentName);
