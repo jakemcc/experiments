@@ -19,6 +19,21 @@ type DayState = (typeof DAY_STATES)[keyof typeof DAY_STATES];
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
+function nextDayState(state: DayState): DayState {
+  return ((state + 1) % 4) as DayState;
+}
+
+function applyDayStateClass(cell: HTMLElement, state: DayState): void {
+  cell.classList.remove('red', 'green', 'blue');
+  if (state === DAY_STATES.Red) {
+    cell.classList.add('red');
+  } else if (state === DAY_STATES.Green) {
+    cell.classList.add('green');
+  } else if (state === DAY_STATES.Blue) {
+    cell.classList.add('blue');
+  }
+}
+
 function buildDayKey(streakName: string, dateKey: string): string {
   return `${encodeURIComponent(streakName)}::${dateKey}`;
 }
@@ -840,20 +855,10 @@ function renderCalendars(
         cell.textContent = String(value);
         const dateKey = `${year}-${month}-${value}`;
         let state = monthState.get(value) ?? DAY_STATES.None;
-        const applyState = (s: DayState) => {
-          cell.classList.remove('red', 'green', 'blue');
-          if (s === DAY_STATES.Red) {
-            cell.classList.add('red');
-          } else if (s === DAY_STATES.Green) {
-            cell.classList.add('green');
-          } else if (s === DAY_STATES.Blue) {
-            cell.classList.add('blue');
-          }
-        };
-        applyState(state);
+        applyDayStateClass(cell, state);
         cell.addEventListener('click', async () => {
-          state = ((state + 1) % 4) as DayState;
-          applyState(state);
+          state = nextDayState(state);
+          applyDayStateClass(cell, state);
           if (state === DAY_STATES.None) {
             monthState.delete(value);
             stateMap.delete(dateKey);
