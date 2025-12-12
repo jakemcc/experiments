@@ -194,9 +194,9 @@ function getMostRecentlyUpdatedStreak(
   }
 
   for (let i = fallbackNames.length - 1; i >= 0; i -= 1) {
-    const name = normalizeStreakName(fallbackNames[i]);
-    if (name) {
-      return name;
+    const trimmed = trimStreakName(fallbackNames[i]);
+    if (trimmed) {
+      return trimmed;
     }
   }
 
@@ -321,8 +321,13 @@ async function saveStreakNames(db: IDBDatabase, names: string[]): Promise<void> 
   await transactionDone(tx, 'Failed to save streak names');
 }
 
+function trimStreakName(name: string): string | null {
+  const trimmed = name.trim();
+  return trimmed ? trimmed : null;
+}
+
 function normalizeStreakName(name: string): string {
-  return name.trim() || DEFAULT_STREAK_NAME;
+  return trimStreakName(name) ?? DEFAULT_STREAK_NAME;
 }
 
 function buildNamesSet(storedNames: string[], streakNamesFromStates: Set<string>): Set<string> {
