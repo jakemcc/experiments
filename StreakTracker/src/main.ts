@@ -236,6 +236,50 @@ function normalizeStreakName(name: string): string {
   return name.trim() || DEFAULT_STREAK_NAME;
 }
 
+function buildNamesSet(storedNames: string[], streakNamesFromStates: Set<string>): Set<string> {
+  const namesSet = new Set<string>();
+  storedNames.map(normalizeStreakName).forEach((name) => namesSet.add(name));
+  streakNamesFromStates.forEach((name) => namesSet.add(normalizeStreakName(name)));
+  return namesSet;
+}
+
+function selectInitialStreak(
+  namesSet: Set<string>,
+  normalizedHashStreak: string | null,
+  streakStates: Map<string, Map<string, DayState>>,
+  lastUpdated: Map<string, number>,
+  fallbackNames: string[],
+): { selectedStreak: string; namesSet: Set<string> } {
+  const nextSet = new Set(namesSet);
+
+  if (nextSet.size === 0) {
+    if (normalizedHashStreak) {
+      nextSet.add(DEFAULT_STREAK_NAME);
+      nextSet.add(normalizedHashStreak);
+      return { selectedStreak: normalizedHashStreak, namesSet: nextSet };
+    }
+    nextSet.add(DEFAULT_STREAK_NAME);
+    return { selectedStreak: DEFAULT_STREAK_NAME, namesSet: nextSet };
+  }
+
+  if (normalizedHashStreak) {
+    nextSet.add(normalizedHashStreak);
+    return { selectedStreak: normalizedHashStreak, namesSet: nextSet };
+  }
+
+  const existingNames = Array.from(nextSet);
+  const mostRecent = getMostRecentlyUpdatedStreak(
+    streakStates,
+    lastUpdated,
+    fallbackNames,
+  );
+  const fallbackName =
+    mostRecent ?? existingNames[existingNames.length - 1] ?? DEFAULT_STREAK_NAME;
+  const selectedStreak = normalizeStreakName(fallbackName);
+  nextSet.add(selectedStreak);
+  return { selectedStreak, namesSet: nextSet };
+}
+
 async function getLastUpdatedMap(db: IDBDatabase): Promise<Map<string, number>> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STREAK_STORE, 'readonly');
@@ -919,42 +963,24 @@ export async function setup(): Promise<void> {
   const lastUpdated = await getLastUpdatedMap(db);
 
   const normalizedStoredNames = storedNames.map(normalizeStreakName);
-  const namesSet = new Set<string>();
-  normalizedStoredNames.forEach((name) => namesSet.add(name));
-  streakNamesFromStates.forEach((name) => namesSet.add(normalizeStreakName(name)));
+  let namesSet = buildNamesSet(storedNames, streakNamesFromStates);
 
   const hashStreak = getHashStreak();
   const normalizedHashStreak = hashStreak ? normalizeStreakName(hashStreak) : null;
 
-  let selectedStreak: string;
-  if (namesSet.size === 0) {
-    if (normalizedHashStreak) {
-      namesSet.add(DEFAULT_STREAK_NAME);
-      namesSet.add(normalizedHashStreak);
-      selectedStreak = normalizedHashStreak;
-    } else {
-      selectedStreak = DEFAULT_STREAK_NAME;
-      namesSet.add(DEFAULT_STREAK_NAME);
-    }
-  } else if (normalizedHashStreak) {
-    selectedStreak = normalizedHashStreak;
-    if (!namesSet.has(selectedStreak)) {
-      namesSet.add(selectedStreak);
-    }
-  } else {
-    const existingNames = Array.from(namesSet);
-    const mostRecent = getMostRecentlyUpdatedStreak(
-      streakStates,
-      lastUpdated,
-      [...normalizedStoredNames, ...Array.from(streakNamesFromStates)],
-    );
-    const fallbackName =
-      mostRecent ?? existingNames[existingNames.length - 1] ?? DEFAULT_STREAK_NAME;
-    selectedStreak = normalizeStreakName(fallbackName);
-    if (!namesSet.has(selectedStreak)) {
-      namesSet.add(selectedStreak);
-    }
-  }
+  const fallbackNames = [
+    ...normalizedStoredNames,
+    ...Array.from(streakNamesFromStates).map(normalizeStreakName),
+  ];
+  const initialSelection = selectInitialStreak(
+    namesSet,
+    normalizedHashStreak,
+    streakStates,
+    lastUpdated,
+    fallbackNames,
+  );
+  namesSet = initialSelection.namesSet;
+  let selectedStreak = initialSelection.selectedStreak;
 
   let streakNames = Array.from(namesSet);
   streakNames.forEach((name) => {
