@@ -44,3 +44,29 @@ clean: ## Remove built site artifacts.
 
 server: ## Serves the output directory
 	cd site && python3 -m http.server
+
+.PHONY: watch dev
+
+WATCHER ?= watchexec
+
+watch: ## Watch sources and rerun `make test build` on changes (requires watchexec).
+	@command -v $(WATCHER) >/dev/null 2>&1 || { \
+		echo "Error: '$(WATCHER)' not found. Install watchexec: https://watchexec.github.io/"; \
+		exit 1; \
+	}
+	$(WATCHER) --clear --restart \
+		--ignore 'site' \
+		--ignore '**/dist' \
+		--ignore '**/node_modules' \
+		--ignore '.git' \
+		--watch Commitment \
+		--watch StreakTracker \
+		--watch packing \
+		--watch Counter \
+		--watch index.html \
+		--watch Makefile \
+		-- "make test build"
+
+dev: ## Run initial test/build, then watch and serve site/.
+	$(MAKE) test build
+	$(MAKE) -j2 server watch
