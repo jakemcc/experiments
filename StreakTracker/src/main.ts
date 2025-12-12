@@ -1010,29 +1010,39 @@ export async function setup(): Promise<void> {
     setHashStreak(selectedStreak);
   }
 
+  const setSelectedStreak = (name: string) => {
+    selectedStreak = normalizeStreakName(name);
+    setHashStreak(selectedStreak);
+  };
+
+  const rerenderAll = () => {
+    renderCalendars(container, selectedStreak, now, db, streakStates, lastUpdated);
+    renderControls();
+  };
+
+  const ensureStreakExists = async (name: string) => {
+    if (!streakNames.includes(name)) {
+      streakNames = [...streakNames, name];
+      streakStates.set(name, streakStates.get(name) ?? new Map());
+      await saveStreakNames(db, streakNames);
+    }
+  };
+
   const renderControls = () => {
     renderStreakControls(
       controls,
       streakNames,
       selectedStreak,
       (name) => {
-        selectedStreak = normalizeStreakName(name);
-        setHashStreak(selectedStreak);
-        renderCalendars(container, selectedStreak, now, db, streakStates, lastUpdated);
-        renderControls();
+        setSelectedStreak(name);
+        rerenderAll();
       },
       async (rawName) => {
         const name = normalizeStreakName(rawName);
-        if (!streakNames.includes(name)) {
-          streakNames = [...streakNames, name];
-          streakStates.set(name, streakStates.get(name) ?? new Map());
-          await saveStreakNames(db, streakNames);
-        }
-        selectedStreak = name;
-        setHashStreak(selectedStreak);
+        await ensureStreakExists(name);
+        setSelectedStreak(name);
         await recordStreakActivity(db, lastUpdated, selectedStreak);
-        renderCalendars(container, selectedStreak, now, db, streakStates, lastUpdated);
-        renderControls();
+        rerenderAll();
       },
       async (rawName) => {
         const trimmed = rawName.trim();
@@ -1047,8 +1057,7 @@ export async function setup(): Promise<void> {
           streakNames = result.names;
           selectedStreak = result.selected;
           setHashStreak(selectedStreak);
-          renderCalendars(container, selectedStreak, now, db, streakStates, lastUpdated);
-          renderControls();
+          rerenderAll();
         } catch (error) {
           console.error('Failed to rename streak', error);
         }
@@ -1088,8 +1097,7 @@ export async function setup(): Promise<void> {
           }
 
           setHashStreak(selectedStreak);
-          renderCalendars(container, selectedStreak, now, db, streakStates, lastUpdated);
-          renderControls();
+          rerenderAll();
         } catch (error) {
           console.error('Failed to delete streak', error);
         }
