@@ -1,7 +1,13 @@
 import {
+  DAY_STATES,
+  DayState,
+  STREAK_TYPES,
+  cycleColorState,
+  migrateStreakTypes,
   generateCalendar,
   setup,
   clearAllStoredDaysForTests,
+  updateCountValue,
 } from './main';
 
 async function flushAsyncOperations() {
@@ -59,6 +65,35 @@ function mockDate(dateString: string): () => void {
   };
 }
 
+function getDayCell(day: string): HTMLElement {
+  const cell = Array.from(document.querySelectorAll('.day')).find(
+    (c) => (c as HTMLElement).dataset.day === day || c.textContent === day,
+  ) as HTMLElement | undefined;
+  if (!cell) {
+    throw new Error(`Unable to find day cell ${day}`);
+  }
+  return cell;
+}
+
+async function readStoredStreakTypes(): Promise<Map<string, string>> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('streak-tracker', 2);
+    request.onerror = () => reject(request.error ?? new Error('open failed'));
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction('streaks', 'readonly');
+      const store = tx.objectStore('streaks');
+      const getRequest = store.get('types');
+      getRequest.onerror = () => reject(getRequest.error ?? new Error('read failed'));
+      getRequest.onsuccess = () => {
+        const result = getRequest.result;
+        db.close();
+        resolve(new Map(Array.isArray(result) ? result : []));
+      };
+    };
+  });
+}
+
 beforeEach(async () => {
   document.body.innerHTML = '';
   localStorage.clear();
@@ -74,37 +109,61 @@ test('generateCalendar has 42 cells and correct day count', () => {
   expect(cells.filter((d) => d !== null).length).toBe(31);
 });
 
+test('cycleColorState advances through the color cycle', () => {
+  let state: DayState = DAY_STATES.None;
+  state = cycleColorState(state);
+  expect(state).toBe(DAY_STATES.Red);
+  state = cycleColorState(state);
+  expect(state).toBe(DAY_STATES.Green);
+  state = cycleColorState(state);
+  expect(state).toBe(DAY_STATES.Blue);
+  state = cycleColorState(state);
+  expect(state).toBe(DAY_STATES.None);
+});
+
+test('updateCountValue clamps at zero and increments correctly', () => {
+  expect(updateCountValue(0, -1)).toBe(0);
+  expect(updateCountValue(1, -1)).toBe(0);
+  expect(updateCountValue(2, -1)).toBe(1);
+  expect(updateCountValue(0, 1)).toBe(1);
+  expect(updateCountValue(4, 3)).toBe(7);
+});
+
+test('migrateStreakTypes defaults to color and is idempotent', () => {
+  const stored = new Map<string, 'color' | 'count'>();
+  const first = migrateStreakTypes(stored, ['Work', 'Exercise']);
+  expect(first.didChange).toBe(true);
+  expect(first.types.get('Work')).toBe(STREAK_TYPES.Color);
+  expect(first.types.get('Exercise')).toBe(STREAK_TYPES.Color);
+
+  const second = migrateStreakTypes(first.types, ['Work', 'Exercise']);
+  expect(second.didChange).toBe(false);
+  expect(second.types.get('Work')).toBe(STREAK_TYPES.Color);
+});
+
 test('clicking a day saves and restores its state', async () => {
   document.body.innerHTML = '<div id="calendars"></div>';
   await setup();
-  const cell = Array.from(document.querySelectorAll('.day')).find(
-    (c) => c.textContent === '1'
-  ) as HTMLElement;
+  const cell = getDayCell('1');
   cell.dispatchEvent(new Event('click'));
   await flushAsyncOperations();
   document.body.innerHTML = '<div id="calendars"></div>';
   await setup();
-  const cell2 = Array.from(document.querySelectorAll('.day')).find(
-    (c) => c.textContent === '1'
-  ) as HTMLElement;
+  const cell2 = getDayCell('1');
   expect(cell2.classList.contains('red')).toBe(true);
 });
 
 test('third click sets day to blue and persists state', async () => {
   document.body.innerHTML = '<div id="calendars"></div>';
   await setup();
-  const cell = Array.from(document.querySelectorAll('.day')).find(
-    (c) => c.textContent === '1'
-  ) as HTMLElement;
+  const cell = getDayCell('1');
   cell.click();
   cell.click();
   cell.click();
   await flushAsyncOperations();
   document.body.innerHTML = '<div id="calendars"></div>';
   await setup();
-  const cell2 = Array.from(document.querySelectorAll('.day')).find(
-    (c) => c.textContent === '1'
-  ) as HTMLElement;
+  const cell2 = getDayCell('1');
   expect(cell2.classList.contains('blue')).toBe(true);
 });
 
@@ -113,10 +172,7 @@ test('streak selection uses URL hash and keeps calendars separate', async () => 
   document.body.innerHTML = '<div id="calendars"></div>';
   await setup();
 
-  const getCell = (day: string) =>
-    Array.from(document.querySelectorAll('.day')).find((c) => c.textContent === day) as HTMLElement;
-
-  const workCell = getCell('1');
+  const workCell = getDayCell('1');
   workCell.click();
   await flushAsyncOperations();
   expect(window.location.hash).toBe('#Work');
@@ -127,7 +183,7 @@ test('streak selection uses URL hash and keeps calendars separate', async () => 
   myStreakButton.click();
   await flushAsyncOperations();
 
-  const defaultCell = getCell('1');
+  const defaultCell = getDayCell('1');
   expect(defaultCell.classList.contains('red')).toBe(false);
   defaultCell.click();
   await flushAsyncOperations();
@@ -138,7 +194,7 @@ test('streak selection uses URL hash and keeps calendars separate', async () => 
   workButton.click();
   await flushAsyncOperations();
 
-  const workCellAgain = getCell('1');
+  const workCellAgain = getDayCell('1');
   expect(workCellAgain.classList.contains('red')).toBe(true);
 });
 
@@ -147,9 +203,7 @@ test('renaming a streak keeps its data and updates selection', async () => {
   try {
     document.body.innerHTML = '<div id="calendars"></div>';
     await setup();
-    const firstCell = Array.from(document.querySelectorAll('.day')).find(
-      (c) => c.textContent === '1'
-    ) as HTMLElement;
+    const firstCell = getDayCell('1');
     firstCell.click();
     await flushAsyncOperations();
 
@@ -167,9 +221,7 @@ test('renaming a streak keeps its data and updates selection', async () => {
 
     document.body.innerHTML = '<div id="calendars"></div>';
     await setup();
-    const renamedCell = Array.from(document.querySelectorAll('.day')).find(
-      (c) => c.textContent === '1'
-    ) as HTMLElement;
+    const renamedCell = getDayCell('1');
     expect(renamedCell.classList.contains('red')).toBe(true);
   } finally {
     promptSpy.mockRestore();
@@ -227,7 +279,10 @@ test('when default streak is missing it selects the most recently updated streak
 });
 
 test('creating a streak uses a prompt and selects the new streak', async () => {
-  const promptSpy = jest.spyOn(window, 'prompt').mockReturnValue('New Streak');
+  const promptSpy = jest
+    .spyOn(window, 'prompt')
+    .mockImplementationOnce(() => 'New Streak')
+    .mockImplementationOnce(() => 'Count');
   try {
     document.body.innerHTML = '<div id="calendars"></div>';
     await setup();
@@ -247,13 +302,43 @@ test('creating a streak uses a prompt and selects the new streak', async () => {
     );
     expect(pills).toContain('New Streak');
     expect(window.location.hash).toBe('#New%20Streak');
+    const types = await readStoredStreakTypes();
+    expect(types.get('New Streak')).toBe('count');
   } finally {
     promptSpy.mockRestore();
   }
 });
 
+test('creating a streak requires a valid type selection', async () => {
+  const promptSpy = jest
+    .spyOn(window, 'prompt')
+    .mockImplementationOnce(() => 'Invalid Type Streak')
+    .mockImplementationOnce(() => 'Not A Type');
+  const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+
+    const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
+    addButton.click();
+    await flushAsyncOperations();
+
+    expect(alertSpy).toHaveBeenCalled();
+    const pills = Array.from(document.querySelectorAll('.streak-pill')).map(
+      (pill) => (pill as HTMLButtonElement).textContent
+    );
+    expect(pills).not.toContain('Invalid Type Streak');
+  } finally {
+    promptSpy.mockRestore();
+    alertSpy.mockRestore();
+  }
+});
+
 test('deleting a streak removes its data and selects a remaining streak', async () => {
-  const promptSpy = jest.spyOn(window, 'prompt').mockReturnValue('Work');
+  const promptSpy = jest
+    .spyOn(window, 'prompt')
+    .mockImplementationOnce(() => 'Work')
+    .mockImplementationOnce(() => 'Colors');
   const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
   try {
     document.body.innerHTML = '<div id="calendars"></div>';
@@ -274,9 +359,7 @@ test('deleting a streak removes its data and selects a remaining streak', async 
     workButton.click();
     await flushAsyncOperations();
 
-    const workDayOne = Array.from(document.querySelectorAll('.day')).find(
-      (c) => c.textContent === '1'
-    ) as HTMLElement;
+    const workDayOne = getDayCell('1');
     workDayOne.click();
     await flushAsyncOperations();
 
@@ -299,9 +382,7 @@ test('deleting a streak removes its data and selects a remaining streak', async 
       (pill) => (pill as HTMLButtonElement).textContent
     );
     expect(pillsAfter).not.toContain('Work');
-    const dayOne = Array.from(document.querySelectorAll('.day')).find(
-      (c) => c.textContent === '1'
-    ) as HTMLElement;
+    const dayOne = getDayCell('1');
     expect(dayOne.classList.contains('red')).toBe(false);
   } finally {
     promptSpy.mockRestore();
@@ -315,9 +396,7 @@ test('deleting the last streak resets to a fresh default streak', async () => {
     document.body.innerHTML = '<div id="calendars"></div>';
     await setup();
 
-    const dayOne = Array.from(document.querySelectorAll('.day')).find(
-      (c) => c.textContent === '1'
-    ) as HTMLElement;
+    const dayOne = getDayCell('1');
     dayOne.click();
     await flushAsyncOperations();
 
@@ -338,14 +417,10 @@ test('deleting the last streak resets to a fresh default streak', async () => {
     );
     expect(pills).toEqual(['My Streak']);
     await waitForCondition(() => {
-      const cell = Array.from(document.querySelectorAll('.day')).find(
-        (c) => c.textContent === '1'
-      ) as HTMLElement;
+      const cell = getDayCell('1');
       return cell !== undefined && !cell.classList.contains('red');
     });
-    const dayOneAfter = Array.from(document.querySelectorAll('.day')).find(
-      (c) => c.textContent === '1'
-    ) as HTMLElement;
+    const dayOneAfter = getDayCell('1');
     expect(dayOneAfter.classList.contains('red')).toBe(false);
   } finally {
     confirmSpy.mockRestore();
@@ -378,9 +453,7 @@ test('legacy unscoped data is migrated into the default streak', async () => {
   });
 
   await setup();
-  const cell = Array.from(document.querySelectorAll('.day')).find(
-    (c) => c.textContent === '1'
-  ) as HTMLElement;
+  const cell = getDayCell('1');
   expect(cell.classList.contains('green')).toBe(true);
   restoreDate();
 });
@@ -425,9 +498,7 @@ test('stats update for all colors and streaks', async () => {
     `Blue days: 0/${daysPassed}, Longest blue streak: 0`,
     'Longest green or blue streak: 0',
   ]);
-  const day1 = Array.from(document.querySelectorAll('.day')).find(
-    (c) => c.textContent === '1'
-  ) as HTMLElement;
+  const day1 = getDayCell('1');
   day1.click();
   await flushAsyncOperations();
   await expectStats([
@@ -462,10 +533,6 @@ test('longest green or blue streak spans both colors', async () => {
     await setup();
     const stats = document.querySelector('.stats') as HTMLElement;
     const daysPassed = new Date().getDate();
-    const getCell = (day: string) =>
-      Array.from(document.querySelectorAll('.day')).find(
-        (c) => c.textContent === day
-      ) as HTMLElement;
     const getState = (cell: HTMLElement) => {
       if (cell.classList.contains('red')) {
         return 1;
@@ -487,13 +554,13 @@ test('longest green or blue streak spans both colors', async () => {
       }
       throw new Error('Unable to reach desired state');
     };
-    setState(getCell('1'), 2);
+    setState(getDayCell('1'), 2);
     await flushAsyncOperations();
-    setState(getCell('2'), 2);
+    setState(getDayCell('2'), 2);
     await flushAsyncOperations();
-    setState(getCell('3'), 3);
+    setState(getDayCell('3'), 3);
     await flushAsyncOperations();
-    setState(getCell('4'), 2);
+    setState(getDayCell('4'), 2);
     await flushAsyncOperations();
     const expected = [
       `Green days: 3/${daysPassed}, Longest green streak: 2`,
@@ -504,6 +571,131 @@ test('longest green or blue streak spans both colors', async () => {
     await waitForCondition(() => stats.innerHTML === expected);
     expect(stats.innerHTML).toBe(expected);
   } finally {
+    restoreDate();
+  }
+});
+
+test('migrates streaks without types to color', async () => {
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open('streak-tracker', 2);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('dayStates')) {
+        db.createObjectStore('dayStates');
+      }
+      if (!db.objectStoreNames.contains('streaks')) {
+        db.createObjectStore('streaks');
+      }
+    };
+    request.onerror = () => reject(request.error ?? new Error('open failed'));
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction(['dayStates', 'streaks'], 'readwrite');
+      tx.objectStore('dayStates').put(1, `${encodeURIComponent('Work')}::2024-2-1`);
+      tx.objectStore('streaks').put(['Work'], 'names');
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => reject(tx.error ?? new Error('write failed'));
+    };
+  });
+
+  document.body.innerHTML = '<div id="calendars"></div>';
+  await setup();
+  const types = await readStoredStreakTypes();
+  expect(types.get('Work')).toBe('color');
+});
+
+test('count streak increments and clamps at zero', async () => {
+  const restoreDate = mockDate('2024-02-10T00:00:00Z');
+  const promptSpy = jest
+    .spyOn(window, 'prompt')
+    .mockImplementationOnce(() => 'Counts')
+    .mockImplementationOnce(() => 'Count');
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+    const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
+    addButton.click();
+    await flushAsyncOperations();
+
+    const countPill = await (async () => {
+      await waitForCondition(() =>
+        Array.from(document.querySelectorAll('.streak-pill')).some(
+          (el) => el.textContent === 'Counts'
+        )
+      );
+      return Array.from(document.querySelectorAll('.streak-pill')).find(
+        (el) => el.textContent === 'Counts'
+      ) as HTMLButtonElement;
+    })();
+    countPill.click();
+    await flushAsyncOperations();
+
+    const dayCell = getDayCell('1');
+    const increment = dayCell.querySelector('.day-count__control--plus') as HTMLButtonElement;
+    const decrement = dayCell.querySelector('.day-count__control--minus') as HTMLButtonElement;
+    const value = dayCell.querySelector('.day-count__value') as HTMLElement;
+
+    increment.click();
+    await flushAsyncOperations();
+    expect(value.textContent).toBe('1');
+    increment.click();
+    await flushAsyncOperations();
+    expect(value.textContent).toBe('2');
+
+    await new Promise<void>((resolve, reject) => {
+      const now = new Date();
+      const request = indexedDB.open('streak-tracker', 2);
+      request.onerror = () => reject(request.error ?? new Error('open failed'));
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction('dayStates', 'readonly');
+        const store = tx.objectStore('dayStates');
+        const getRequest = store.get(
+          `${encodeURIComponent('Counts')}::${now.getFullYear()}-${now.getMonth() + 1}-1`,
+        );
+        getRequest.onerror = () => reject(getRequest.error ?? new Error('read failed'));
+        getRequest.onsuccess = () => {
+          expect(getRequest.result).toBe(2);
+          db.close();
+          resolve();
+        };
+      };
+    });
+
+    decrement.click();
+    await flushAsyncOperations();
+    expect(value.textContent).toBe('1');
+    decrement.click();
+    await flushAsyncOperations();
+    expect(value.textContent).toBe('');
+    decrement.click();
+    await flushAsyncOperations();
+    expect(value.textContent).toBe('');
+
+    await new Promise<void>((resolve, reject) => {
+      const now = new Date();
+      const request = indexedDB.open('streak-tracker', 2);
+      request.onerror = () => reject(request.error ?? new Error('open failed'));
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction('dayStates', 'readonly');
+        const store = tx.objectStore('dayStates');
+        const getRequest = store.get(
+          `${encodeURIComponent('Counts')}::${now.getFullYear()}-${now.getMonth() + 1}-1`,
+        );
+        getRequest.onerror = () => reject(getRequest.error ?? new Error('read failed'));
+        getRequest.onsuccess = () => {
+          expect(getRequest.result).toBeUndefined();
+          db.close();
+          resolve();
+        };
+      };
+    });
+  } finally {
+    promptSpy.mockRestore();
     restoreDate();
   }
 });

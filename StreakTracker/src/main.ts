@@ -3,25 +3,54 @@ const DB_VERSION = 2;
 const STORE_NAME = 'dayStates';
 const STREAK_STORE = 'streaks';
 const STREAK_LIST_KEY = 'names';
+const STREAK_TYPES_KEY = 'types';
 const LAST_UPDATED_KEY = 'lastUpdated';
 const DATE_KEY_PATTERN = /^\d{4}-\d{1,2}-\d{1,2}$/;
 const DAY_KEY_PATTERN = /^([^:]+)::(\d{4}-\d{1,2}-\d{1,2})$/;
 const DEFAULT_STREAK_NAME = 'My Streak';
 
-const DAY_STATES = {
+export const DAY_STATES = {
   None: 0,
   Red: 1,
   Green: 2,
   Blue: 3,
 } as const;
 
-type DayState = (typeof DAY_STATES)[keyof typeof DAY_STATES];
+export type DayState = (typeof DAY_STATES)[keyof typeof DAY_STATES];
+type DayValue = number;
+type StreakType = 'color' | 'count';
 
-let dbPromise: Promise<IDBDatabase> | null = null;
+export const STREAK_TYPES = {
+  Color: 'color',
+  Count: 'count',
+} as const;
 
-function nextDayState(state: DayState): DayState {
+export function cycleColorState(state: DayState): DayState {
   return ((state + 1) % 4) as DayState;
 }
+
+export function updateCountValue(current: number, delta: number): number {
+  const safeCurrent = Number.isFinite(current) ? Math.floor(current) : 0;
+  const next = safeCurrent + Math.trunc(delta);
+  return Math.max(0, next);
+}
+
+export function migrateStreakTypes(
+  storedTypes: Map<string, StreakType>,
+  streakNames: Iterable<string>,
+): { types: Map<string, StreakType>; didChange: boolean } {
+  const migrated = new Map(storedTypes);
+  let didChange = false;
+  for (const name of streakNames) {
+    if (!migrated.has(name)) {
+      migrated.set(name, STREAK_TYPES.Color);
+      didChange = true;
+    }
+  }
+  return { types: migrated, didChange };
+}
+
+let dbPromise: Promise<IDBDatabase> | null = null;
 
 function applyDayStateClass(cell: HTMLElement, state: DayState): void {
   cell.classList.remove('red', 'green', 'blue');
@@ -120,6 +149,16 @@ function computeMonthStats(
   ];
 }
 
+function computeCountStats(
+  monthCounts: Map<number, number>,
+): string[] {
+  let total = 0;
+  monthCounts.forEach((value) => {
+    total += value;
+  });
+  return [`Total count: ${total}`];
+}
+
 function buildDayKey(streakName: string, dateKey: string): string {
   return `${encodeURIComponent(streakName)}::${dateKey}`;
 }
@@ -155,7 +194,7 @@ function dateKeyToTime(dateKey: string): number | null {
   return Number.isNaN(time) ? null : time;
 }
 
-function getLatestStateTimestamp(stateMap: Map<string, DayState>): number {
+function getLatestStateTimestamp(stateMap: Map<string, DayValue>): number {
   let latest = Number.NEGATIVE_INFINITY;
   stateMap.forEach((_, dateKey) => {
     const time = dateKeyToTime(dateKey);
@@ -167,7 +206,7 @@ function getLatestStateTimestamp(stateMap: Map<string, DayState>): number {
 }
 
 function getMostRecentlyUpdatedStreak(
-  streakStates: Map<string, Map<string, DayState>>,
+  streakStates: Map<string, Map<string, DayValue>>,
   lastUpdated: Map<string, number>,
   fallbackNames: string[],
 ): string | null {
@@ -314,6 +353,34 @@ async function getStoredStreakNames(db: IDBDatabase): Promise<string[]> {
   return [];
 }
 
+function parseStoredStreakTypes(raw: unknown): Map<string, StreakType> {
+  if (!Array.isArray(raw)) {
+    return new Map();
+  }
+  const entries = raw.filter(
+    (entry): entry is [string, StreakType] =>
+      Array.isArray(entry) &&
+      entry.length === 2 &&
+      typeof entry[0] === 'string' &&
+      (entry[1] === STREAK_TYPES.Color || entry[1] === STREAK_TYPES.Count),
+  );
+  return new Map(entries);
+}
+
+async function getStoredStreakTypes(db: IDBDatabase): Promise<Map<string, StreakType>> {
+  const tx = db.transaction(STREAK_STORE, 'readonly');
+  const store = tx.objectStore(STREAK_STORE);
+  const result = await storeGet<unknown>(store, STREAK_TYPES_KEY, 'Failed to load streak types');
+  return parseStoredStreakTypes(result);
+}
+
+async function saveStreakTypes(db: IDBDatabase, types: Map<string, StreakType>): Promise<void> {
+  const tx = db.transaction(STREAK_STORE, 'readwrite');
+  const store = tx.objectStore(STREAK_STORE);
+  store.put(Array.from(types.entries()), STREAK_TYPES_KEY);
+  await transactionDone(tx, 'Failed to save streak types');
+}
+
 async function saveStreakNames(db: IDBDatabase, names: string[]): Promise<void> {
   const tx = db.transaction(STREAK_STORE, 'readwrite');
   const store = tx.objectStore(STREAK_STORE);
@@ -340,7 +407,7 @@ function buildNamesSet(storedNames: string[], streakNamesFromStates: Set<string>
 function selectInitialStreak(
   namesSet: Set<string>,
   normalizedHashStreak: string | null,
-  streakStates: Map<string, Map<string, DayState>>,
+  streakStates: Map<string, Map<string, DayValue>>,
   lastUpdated: Map<string, number>,
   fallbackNames: string[],
 ): { selectedStreak: string; namesSet: Set<string> } {
@@ -524,9 +591,9 @@ async function migrateUnscopedDayStates(db: IDBDatabase): Promise<void> {
 
 async function getAllDayStates(
   db: IDBDatabase,
-): Promise<{ streakStates: Map<string, Map<string, DayState>>; streakNames: Set<string> }>
+): Promise<{ streakStates: Map<string, Map<string, DayValue>>; streakNames: Set<string> }>
 {
-  const streakStates = new Map<string, Map<string, DayState>>();
+  const streakStates = new Map<string, Map<string, DayValue>>();
   const streakNames = new Set<string>();
 
   await new Promise<void>((resolve, reject) => {
@@ -543,10 +610,10 @@ async function getAllDayStates(
           const parsed = parseDayKey(cursor.key);
           if (parsed) {
             streakNames.add(parsed.streak);
-            const streakMap = streakStates.get(parsed.streak) ?? new Map<string, DayState>();
+            const streakMap = streakStates.get(parsed.streak) ?? new Map<string, DayValue>();
             const state = cursor.value;
-            if (state > DAY_STATES.None && state <= DAY_STATES.Blue) {
-              streakMap.set(parsed.dateKey, state as DayState);
+            if (Number.isFinite(state) && state > 0) {
+              streakMap.set(parsed.dateKey, state);
             }
             streakStates.set(parsed.streak, streakMap);
           }
@@ -570,7 +637,7 @@ async function setDayState(
   db: IDBDatabase,
   streakName: string,
   dateKey: string,
-  state: DayState,
+  state: DayValue,
 ): Promise<void> {
   const tx = db.transaction(STORE_NAME, 'readwrite');
   const store = tx.objectStore(STORE_NAME);
@@ -617,7 +684,8 @@ async function removeAllDayStates(db: IDBDatabase, streakName: string): Promise<
 
 async function deleteStreak(
   db: IDBDatabase,
-  streakStates: Map<string, Map<string, DayState>>,
+  streakStates: Map<string, Map<string, DayValue>>,
+  streakTypes: Map<string, StreakType>,
   lastUpdated: Map<string, number>,
   streakNames: string[],
   streakName: string,
@@ -631,12 +699,17 @@ async function deleteStreak(
     lastUpdated.delete(normalized);
     await saveLastUpdatedMap(db, lastUpdated);
   }
+  if (streakTypes.has(normalized)) {
+    streakTypes.delete(normalized);
+    await saveStreakTypes(db, streakTypes);
+  }
   return nextNames;
 }
 
 async function renameStreak(
   db: IDBDatabase,
-  streakStates: Map<string, Map<string, DayState>>,
+  streakStates: Map<string, Map<string, DayValue>>,
+  streakTypes: Map<string, StreakType>,
   streakNames: string[],
   oldName: string,
   desiredName: string,
@@ -647,9 +720,9 @@ async function renameStreak(
     return { names: streakNames, selected: currentName };
   }
 
-  const oldStates = streakStates.get(currentName) ?? new Map<string, DayState>();
-  const mergedStates = new Map<string, DayState>(
-    streakStates.get(newName) ?? new Map<string, DayState>(),
+  const oldStates = streakStates.get(currentName) ?? new Map<string, DayValue>();
+  const mergedStates = new Map<string, DayValue>(
+    streakStates.get(newName) ?? new Map<string, DayValue>(),
   );
   oldStates.forEach((state, dateKey) => {
     if (!mergedStates.has(dateKey)) {
@@ -686,12 +759,22 @@ async function renameStreak(
 
   await saveStreakNames(db, nextNames);
 
+  if (!streakTypes.has(newName)) {
+    const existingType = streakTypes.get(currentName) ?? STREAK_TYPES.Color;
+    streakTypes.set(newName, existingType);
+    await saveStreakTypes(db, streakTypes);
+  }
+  if (currentName !== newName && streakTypes.has(currentName)) {
+    streakTypes.delete(currentName);
+    await saveStreakTypes(db, streakTypes);
+  }
+
   return { names: nextNames, selected: newName };
 }
 
 function getStoredMonths(
   now: Date,
-  stateMap: Map<string, DayState>,
+  stateMap: Map<string, DayValue>,
 ): { year: number; month: number }[] {
   const months = new Set<string>();
   stateMap.forEach((_, key) => {
@@ -751,7 +834,7 @@ function renderStreakControls(
   streakNames: string[],
   selectedStreak: string,
   onSelect: (name: string) => void,
-  onCreate: (name: string) => void,
+  onCreate: (name: string, streakType: StreakType) => void,
   onRename: (name: string) => void,
   onDelete: () => void,
 ): void {
@@ -834,7 +917,22 @@ function renderStreakControls(
     if (!trimmed) {
       return;
     }
-    onCreate(trimmed);
+    const typeResponse = prompt('Choose streak type: Colors or Count', 'Colors');
+    if (typeResponse === null) {
+      return;
+    }
+    const normalized = typeResponse.trim().toLowerCase();
+    let streakType: StreakType | null = null;
+    if (normalized === 'color' || normalized === 'colors') {
+      streakType = STREAK_TYPES.Color;
+    } else if (normalized === 'count' || normalized === 'counts') {
+      streakType = STREAK_TYPES.Count;
+    }
+    if (!streakType) {
+      alert('Please enter "Colors" or "Count" to choose a streak type.');
+      return;
+    }
+    onCreate(trimmed, streakType);
   });
   addContainer.appendChild(addButton);
   row.appendChild(addContainer);
@@ -857,15 +955,17 @@ function renderCalendars(
   streakName: string,
   now: Date,
   db: IDBDatabase,
-  streakStates: Map<string, Map<string, DayState>>,
+  streakStates: Map<string, Map<string, DayValue>>,
+  streakTypes: Map<string, StreakType>,
   lastUpdated: Map<string, number>,
 ): void {
   container.innerHTML = '';
   const existingStateMap = streakStates.get(streakName);
-  const stateMap = existingStateMap ?? new Map<string, DayState>();
+  const stateMap = existingStateMap ?? new Map<string, DayValue>();
   if (!existingStateMap) {
     streakStates.set(streakName, stateMap);
   }
+  const streakType = streakTypes.get(streakName) ?? STREAK_TYPES.Color;
   const months = getStoredMonths(now, stateMap).sort((a, b) => {
     if (a.year === b.year) {
       return b.month - a.month;
@@ -888,18 +988,29 @@ function renderCalendars(
     stats.className = 'stats';
 
     const monthState = new Map<number, DayState>();
+    const monthCounts = new Map<number, number>();
     stateMap.forEach((state, key) => {
       const [yStr, mStr, dStr] = key.split('-');
       const y = Number(yStr);
       const m = Number(mStr);
       const d = Number(dStr);
       if (y === year && m === month && !Number.isNaN(d)) {
-        monthState.set(d, state);
+        if (streakType === STREAK_TYPES.Color) {
+          if (state > DAY_STATES.None && state <= DAY_STATES.Blue) {
+            monthState.set(d, state as DayState);
+          }
+        } else if (state > 0) {
+          monthCounts.set(d, Math.floor(state));
+        }
       }
     });
 
     const updateStats = () => {
-      stats.innerHTML = computeMonthStats(now, year, month, monthState).join('<br>');
+      if (streakType === STREAK_TYPES.Color) {
+        stats.innerHTML = computeMonthStats(now, year, month, monthState).join('<br>');
+      } else {
+        stats.textContent = computeCountStats(monthCounts).join(' ');
+      }
     };
 
     const cells = generateCalendar(year, month - 1);
@@ -907,37 +1018,104 @@ function renderCalendars(
       const cell = document.createElement('div');
       cell.className = 'day';
       if (value !== null) {
-        cell.textContent = String(value);
+        cell.dataset.day = String(value);
         const dateKey = `${year}-${month}-${value}`;
-        let state = monthState.get(value) ?? DAY_STATES.None;
-        applyDayStateClass(cell, state);
-        cell.addEventListener('click', async () => {
-          state = nextDayState(state);
+        if (streakType === STREAK_TYPES.Color) {
+          cell.textContent = String(value);
+          let state = monthState.get(value) ?? DAY_STATES.None;
           applyDayStateClass(cell, state);
-          if (state === DAY_STATES.None) {
-            monthState.delete(value);
-            stateMap.delete(dateKey);
-            try {
-              await removeDayState(db, streakName, dateKey);
-            } catch (error) {
-              console.error('Failed to remove day state', error);
+          cell.addEventListener('click', async () => {
+            state = cycleColorState(state);
+            applyDayStateClass(cell, state);
+            if (state === DAY_STATES.None) {
+              monthState.delete(value);
+              stateMap.delete(dateKey);
+              try {
+                await removeDayState(db, streakName, dateKey);
+              } catch (error) {
+                console.error('Failed to remove day state', error);
+              }
+            } else {
+              monthState.set(value, state);
+              stateMap.set(dateKey, state);
+              try {
+                await setDayState(db, streakName, dateKey, state);
+              } catch (error) {
+                console.error('Failed to save day state', error);
+              }
             }
-          } else {
-            monthState.set(value, state);
-            stateMap.set(dateKey, state);
             try {
-              await setDayState(db, streakName, dateKey, state);
+              await recordStreakActivity(db, lastUpdated, streakName);
             } catch (error) {
-              console.error('Failed to save day state', error);
+              console.error('Failed to update streak activity', error);
             }
-          }
-          try {
-            await recordStreakActivity(db, lastUpdated, streakName);
-          } catch (error) {
-            console.error('Failed to update streak activity', error);
-          }
-          updateStats();
-        });
+            updateStats();
+          });
+        } else {
+          cell.classList.add('day--count');
+          const dayLabel = document.createElement('span');
+          dayLabel.className = 'day-number';
+          dayLabel.textContent = String(value);
+          const countValue = document.createElement('div');
+          countValue.className = 'day-count__value';
+          let count = monthCounts.get(value) ?? 0;
+          const updateCountDisplay = () => {
+            countValue.textContent = count > 0 ? String(count) : '';
+          };
+          updateCountDisplay();
+          const incrementButton = document.createElement('button');
+          incrementButton.type = 'button';
+          incrementButton.className = 'day-count__control day-count__control--plus';
+          incrementButton.textContent = '+';
+          incrementButton.setAttribute('aria-label', 'Increase count');
+          const decrementButton = document.createElement('button');
+          decrementButton.type = 'button';
+          decrementButton.className = 'day-count__control day-count__control--minus';
+          decrementButton.textContent = '–';
+          decrementButton.setAttribute('aria-label', 'Decrease count');
+
+          const applyCountChange = async (delta: number) => {
+            count = updateCountValue(count, delta);
+            updateCountDisplay();
+            if (count === 0) {
+              monthCounts.delete(value);
+              stateMap.delete(dateKey);
+              try {
+                await removeDayState(db, streakName, dateKey);
+              } catch (error) {
+                console.error('Failed to remove count state', error);
+              }
+            } else {
+              monthCounts.set(value, count);
+              stateMap.set(dateKey, count);
+              try {
+                await setDayState(db, streakName, dateKey, count);
+              } catch (error) {
+                console.error('Failed to save count state', error);
+              }
+            }
+            try {
+              await recordStreakActivity(db, lastUpdated, streakName);
+            } catch (error) {
+              console.error('Failed to update streak activity', error);
+            }
+            updateStats();
+          };
+
+          incrementButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            void applyCountChange(1);
+          });
+          decrementButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            void applyCountChange(-1);
+          });
+
+          cell.appendChild(incrementButton);
+          cell.appendChild(dayLabel);
+          cell.appendChild(countValue);
+          cell.appendChild(decrementButton);
+        }
       }
       calendar.appendChild(cell);
     });
@@ -971,6 +1149,7 @@ export async function setup(): Promise<void> {
   } catch (error) {
     console.error('Failed to load streak names', error);
   }
+  let streakTypes = await getStoredStreakTypes(db);
   const lastUpdated = await getLastUpdatedMap(db);
 
   const normalizedStoredNames = storedNames.map(normalizeStreakName);
@@ -992,6 +1171,12 @@ export async function setup(): Promise<void> {
   );
   namesSet = initialSelection.namesSet;
   let selectedStreak = initialSelection.selectedStreak;
+
+  const typeMigration = migrateStreakTypes(streakTypes, namesSet);
+  streakTypes = typeMigration.types;
+  if (typeMigration.didChange) {
+    await saveStreakTypes(db, streakTypes);
+  }
 
   let streakNames = Array.from(namesSet);
   streakNames.forEach((name) => {
@@ -1015,15 +1200,19 @@ export async function setup(): Promise<void> {
   };
 
   const rerenderAll = () => {
-    renderCalendars(container, selectedStreak, now, db, streakStates, lastUpdated);
+    renderCalendars(container, selectedStreak, now, db, streakStates, streakTypes, lastUpdated);
     renderControls();
   };
 
-  const ensureStreakExists = async (name: string) => {
+  const ensureStreakExists = async (name: string, streakType?: StreakType) => {
     if (!streakNames.includes(name)) {
       streakNames = [...streakNames, name];
       streakStates.set(name, streakStates.get(name) ?? new Map());
       await saveStreakNames(db, streakNames);
+    }
+    if (streakType && streakTypes.get(name) !== streakType) {
+      streakTypes.set(name, streakType);
+      await saveStreakTypes(db, streakTypes);
     }
   };
 
@@ -1036,9 +1225,9 @@ export async function setup(): Promise<void> {
         setSelectedStreak(name);
         rerenderAll();
       },
-      async (rawName) => {
+      async (rawName, streakType) => {
         const name = normalizeStreakName(rawName);
-        await ensureStreakExists(name);
+        await ensureStreakExists(name, streakType);
         setSelectedStreak(name);
         await recordStreakActivity(db, lastUpdated, selectedStreak);
         rerenderAll();
@@ -1051,7 +1240,14 @@ export async function setup(): Promise<void> {
         try {
           const name = normalizeStreakName(trimmed);
           const previousName = selectedStreak;
-          const result = await renameStreak(db, streakStates, streakNames, selectedStreak, name);
+          const result = await renameStreak(
+            db,
+            streakStates,
+            streakTypes,
+            streakNames,
+            selectedStreak,
+            name,
+          );
           await moveLastUpdatedEntry(db, lastUpdated, previousName, result.selected);
           streakNames = result.names;
           selectedStreak = result.selected;
@@ -1072,16 +1268,26 @@ export async function setup(): Promise<void> {
           return;
         }
         try {
-          streakNames = await deleteStreak(db, streakStates, lastUpdated, streakNames, selectedStreak);
+          streakNames = await deleteStreak(
+            db,
+            streakStates,
+            streakTypes,
+            lastUpdated,
+            streakNames,
+            selectedStreak,
+          );
 
           if (streakNames.length === 0) {
             lastUpdated.clear();
             await saveLastUpdatedMap(db, lastUpdated);
             streakStates.clear();
+            streakTypes.clear();
             selectedStreak = DEFAULT_STREAK_NAME;
             streakStates.set(selectedStreak, new Map());
             streakNames = [selectedStreak];
             await saveStreakNames(db, streakNames);
+            await saveStreakTypes(db, streakTypes);
+            await ensureStreakExists(selectedStreak, STREAK_TYPES.Color);
             await recordStreakActivity(db, lastUpdated, selectedStreak);
           } else {
             const next = getMostRecentlyUpdatedStreak(
@@ -1105,7 +1311,7 @@ export async function setup(): Promise<void> {
   };
 
   renderControls();
-  renderCalendars(container, selectedStreak, now, db, streakStates, lastUpdated);
+  renderCalendars(container, selectedStreak, now, db, streakStates, streakTypes, lastUpdated);
 }
 
 function registerServiceWorker() {
