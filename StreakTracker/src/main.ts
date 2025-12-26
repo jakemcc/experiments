@@ -152,11 +152,34 @@ function computeMonthStats(
 function computeCountStats(
   monthCounts: Map<number, number>,
 ): string[] {
-  let total = 0;
-  monthCounts.forEach((value) => {
-    total += value;
-  });
-  return [`Total count: ${total}`];
+  const values = Array.from(monthCounts.values());
+  return buildCountStats(values);
+}
+
+function formatStatValue(value: number): string {
+  if (Number.isInteger(value)) {
+    return String(value);
+  }
+  return value.toFixed(2);
+}
+
+function buildCountStats(values: number[]): string[] {
+  if (values.length === 0) {
+    return ['Total count: 0', 'Median count: 0', 'Mean count: 0'];
+  }
+  const total = values.reduce((sum, value) => sum + value, 0);
+  const sorted = [...values].sort((a, b) => a - b);
+  const midpoint = Math.floor(sorted.length / 2);
+  const median =
+    sorted.length % 2 === 0
+      ? (sorted[midpoint - 1] + sorted[midpoint]) / 2
+      : sorted[midpoint];
+  const mean = total / values.length;
+  return [
+    `Total count: ${formatStatValue(total)}`,
+    `Median count: ${formatStatValue(median)}`,
+    `Mean count: ${formatStatValue(mean)}`,
+  ];
 }
 
 function buildDayKey(streakName: string, dateKey: string): string {
@@ -972,6 +995,19 @@ function renderCalendars(
     }
     return b.year - a.year;
   });
+  let overallStats: HTMLParagraphElement | null = null;
+  const updateOverallStats = () => {
+    if (!overallStats) {
+      return;
+    }
+    const values = Array.from(stateMap.values()).filter((value) => value > 0);
+    overallStats.textContent = buildCountStats(values).slice(1).join(' ');
+  };
+  if (streakType === STREAK_TYPES.Count) {
+    overallStats = document.createElement('p');
+    overallStats.className = 'stats stats--overall';
+    container.appendChild(overallStats);
+  }
 
   months.forEach(({ year, month }) => {
     const section = document.createElement('section');
@@ -1010,6 +1046,7 @@ function renderCalendars(
         stats.innerHTML = computeMonthStats(now, year, month, monthState).join('<br>');
       } else {
         stats.textContent = computeCountStats(monthCounts).join(' ');
+        updateOverallStats();
       }
     };
 
@@ -1124,6 +1161,7 @@ function renderCalendars(
     container.appendChild(section);
     updateStats();
   });
+  updateOverallStats();
 }
 
 export async function setup(): Promise<void> {
