@@ -247,6 +247,37 @@ test('renaming a streak keeps its data and updates selection', async () => {
   }
 });
 
+test('color settings rename labels and show swatches in stats', async () => {
+  document.body.innerHTML = '<div id="calendars"></div>';
+  await setup();
+
+  const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+  settingsButton.click();
+  await flushAsyncOperations();
+
+  const greenInput = document.getElementById('streak-color-label-green') as HTMLInputElement;
+  const redInput = document.getElementById('streak-color-label-red') as HTMLInputElement;
+  const blueInput = document.getElementById('streak-color-label-blue') as HTMLInputElement;
+
+  greenInput.value = 'Emerald';
+  redInput.value = 'Ruby';
+  blueInput.value = 'Azure';
+
+  const saveButton = document.querySelector('.streak-settings__save') as HTMLButtonElement;
+  saveButton.click();
+  await flushAsyncOperations();
+
+  const stats = document.querySelector('.stats') as HTMLElement;
+  expect(stats.textContent).toContain('Emerald days');
+  expect(stats.textContent).toContain('Ruby days');
+  expect(stats.textContent).toContain('Azure days');
+  expect(stats.textContent).toContain('Longest Emerald or Azure streak');
+
+  expect(document.querySelectorAll('.stats-swatch--green').length).toBe(1);
+  expect(document.querySelectorAll('.stats-swatch--red').length).toBe(1);
+  expect(document.querySelectorAll('.stats-swatch--blue').length).toBe(1);
+});
+
 test('when default streak is missing it selects the most recently updated streak', async () => {
   await new Promise<void>((resolve, reject) => {
     const request = indexedDB.open('streak-tracker', 2);
@@ -507,40 +538,45 @@ test('stats update for all colors and streaks', async () => {
   await setup();
   const stats = document.querySelector('.stats') as HTMLElement;
   const daysPassed = new Date().getDate();
+  const getStatLines = () =>
+    Array.from(stats.querySelectorAll('.stats-line')).map((line) => line.textContent ?? '');
   const expectStats = async (lines: string[]) => {
-    await waitForCondition(() => stats.innerHTML === lines.join('<br>'));
-    expect(stats.innerHTML).toBe(lines.join('<br>'));
+    await waitForCondition(() => {
+      const rendered = getStatLines();
+      return rendered.length === lines.length && rendered.every((line, idx) => line === lines[idx]);
+    });
+    expect(getStatLines()).toEqual(lines);
   };
   await expectStats([
-    `Green days: 0/${daysPassed}, Longest green streak: 0`,
-    `Red days: 0/${daysPassed}, Longest red streak: 0`,
-    `Blue days: 0/${daysPassed}, Longest blue streak: 0`,
-    'Longest green or blue streak: 0',
+    `Green days: 0/${daysPassed}, Longest Green streak: 0`,
+    `Red days: 0/${daysPassed}, Longest Red streak: 0`,
+    `Blue days: 0/${daysPassed}, Longest Blue streak: 0`,
+    'Longest Green or Blue streak: 0',
   ]);
   const day1 = getDayCell('1');
   day1.click();
   await flushAsyncOperations();
   await expectStats([
-    `Green days: 0/${daysPassed}, Longest green streak: 0`,
-    `Red days: 1/${daysPassed}, Longest red streak: 1`,
-    `Blue days: 0/${daysPassed}, Longest blue streak: 0`,
-    'Longest green or blue streak: 0',
+    `Green days: 0/${daysPassed}, Longest Green streak: 0`,
+    `Red days: 1/${daysPassed}, Longest Red streak: 1`,
+    `Blue days: 0/${daysPassed}, Longest Blue streak: 0`,
+    'Longest Green or Blue streak: 0',
   ]);
   day1.click();
   await flushAsyncOperations();
   await expectStats([
-    `Green days: 1/${daysPassed}, Longest green streak: 1`,
-    `Red days: 0/${daysPassed}, Longest red streak: 0`,
-    `Blue days: 0/${daysPassed}, Longest blue streak: 0`,
-    'Longest green or blue streak: 1',
+    `Green days: 1/${daysPassed}, Longest Green streak: 1`,
+    `Red days: 0/${daysPassed}, Longest Red streak: 0`,
+    `Blue days: 0/${daysPassed}, Longest Blue streak: 0`,
+    'Longest Green or Blue streak: 1',
   ]);
   day1.click();
   await flushAsyncOperations();
   await expectStats([
-    `Green days: 0/${daysPassed}, Longest green streak: 0`,
-    `Red days: 0/${daysPassed}, Longest red streak: 0`,
-    `Blue days: 1/${daysPassed}, Longest blue streak: 1`,
-    'Longest green or blue streak: 1',
+    `Green days: 0/${daysPassed}, Longest Green streak: 0`,
+    `Red days: 0/${daysPassed}, Longest Red streak: 0`,
+    `Blue days: 1/${daysPassed}, Longest Blue streak: 1`,
+    'Longest Green or Blue streak: 1',
   ]);
   restoreDate();
 });
@@ -582,13 +618,18 @@ test('longest green or blue streak spans both colors', async () => {
     setState(getDayCell('4'), 2);
     await flushAsyncOperations();
     const expected = [
-      `Green days: 3/${daysPassed}, Longest green streak: 2`,
-      `Red days: 0/${daysPassed}, Longest red streak: 0`,
-      `Blue days: 1/${daysPassed}, Longest blue streak: 1`,
-      'Longest green or blue streak: 4',
-    ].join('<br>');
-    await waitForCondition(() => stats.innerHTML === expected);
-    expect(stats.innerHTML).toBe(expected);
+      `Green days: 3/${daysPassed}, Longest Green streak: 2`,
+      `Red days: 0/${daysPassed}, Longest Red streak: 0`,
+      `Blue days: 1/${daysPassed}, Longest Blue streak: 1`,
+      'Longest Green or Blue streak: 4',
+    ];
+    const getStatLines = () =>
+      Array.from(stats.querySelectorAll('.stats-line')).map((line) => line.textContent ?? '');
+    await waitForCondition(() => {
+      const rendered = getStatLines();
+      return rendered.length === expected.length && rendered.every((line, idx) => line === expected[idx]);
+    });
+    expect(getStatLines()).toEqual(expected);
   } finally {
     restoreDate();
   }

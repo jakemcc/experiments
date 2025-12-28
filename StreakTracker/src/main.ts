@@ -21,15 +21,33 @@ export type DayState = (typeof DAY_STATES)[keyof typeof DAY_STATES];
 type DayValue = number;
 type StreakType = 'color' | 'count';
 type CountZeroStartMode = 'first' | 'today' | 'custom';
+type ColorLabelKey = 'red' | 'green' | 'blue';
+type ColorLabels = {
+  red?: string;
+  green?: string;
+  blue?: string;
+};
+type ColorLabelSet = {
+  red: string;
+  green: string;
+  blue: string;
+};
 type StreakSettings = {
   countZeroStartMode?: CountZeroStartMode;
   countZeroStartDate?: string;
+  colorLabels?: ColorLabels;
 };
 
 export const STREAK_TYPES = {
   Color: 'color',
   Count: 'count',
 } as const;
+
+const DEFAULT_COLOR_LABELS: ColorLabelSet = {
+  green: 'Green',
+  red: 'Red',
+  blue: 'Blue',
+};
 
 export function cycleColorState(state: DayState): DayState {
   return ((state + 1) % 4) as DayState;
@@ -69,12 +87,49 @@ function applyDayStateClass(cell: HTMLElement, state: DayState): void {
   }
 }
 
+type ColorStatLine = {
+  key?: ColorLabelKey;
+  text: string;
+};
+
+function normalizeColorLabel(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function getColorLabels(settings?: StreakSettings): ColorLabelSet {
+  const labels = settings?.colorLabels;
+  return {
+    green: normalizeColorLabel(labels?.green) ?? DEFAULT_COLOR_LABELS.green,
+    red: normalizeColorLabel(labels?.red) ?? DEFAULT_COLOR_LABELS.red,
+    blue: normalizeColorLabel(labels?.blue) ?? DEFAULT_COLOR_LABELS.blue,
+  };
+}
+
+function hasCustomColorLabels(labels?: ColorLabels): boolean {
+  return Boolean(labels?.green || labels?.red || labels?.blue);
+}
+
+function hasCountSettings(settings: StreakSettings): boolean {
+  if (!settings.countZeroStartMode) {
+    return false;
+  }
+  if (settings.countZeroStartMode === 'first' && !settings.countZeroStartDate) {
+    return false;
+  }
+  return true;
+}
+
 function computeMonthStats(
   now: Date,
   year: number,
   month: number,
   monthState: Map<number, DayState>,
-): string[] {
+  labels: ColorLabelSet,
+): ColorStatLine[] {
   const daysInMonth = new Date(year, month, 0).getDate();
   let daysPassed = 0;
   if (year === now.getFullYear() && month === now.getMonth() + 1) {
@@ -148,11 +203,42 @@ function computeMonthStats(
   }
 
   return [
-    `Green days: ${colorCounts.green}/${daysPassed}, Longest green streak: ${longestStreaks.green}`,
-    `Red days: ${colorCounts.red}/${daysPassed}, Longest red streak: ${longestStreaks.red}`,
-    `Blue days: ${colorCounts.blue}/${daysPassed}, Longest blue streak: ${longestStreaks.blue}`,
-    `Longest green or blue streak: ${longestGreenBlueStreak}`,
+    {
+      key: 'green',
+      text: `${labels.green} days: ${colorCounts.green}/${daysPassed}, Longest ${labels.green} streak: ${longestStreaks.green}`,
+    },
+    {
+      key: 'red',
+      text: `${labels.red} days: ${colorCounts.red}/${daysPassed}, Longest ${labels.red} streak: ${longestStreaks.red}`,
+    },
+    {
+      key: 'blue',
+      text: `${labels.blue} days: ${colorCounts.blue}/${daysPassed}, Longest ${labels.blue} streak: ${longestStreaks.blue}`,
+    },
+    {
+      text: `Longest ${labels.green} or ${labels.blue} streak: ${longestGreenBlueStreak}`,
+    },
   ];
+}
+
+function renderColorStats(stats: HTMLElement, lines: ColorStatLine[]): void {
+  stats.replaceChildren();
+  lines.forEach((line, index) => {
+    const lineEl = document.createElement('span');
+    lineEl.className = 'stats-line';
+    if (line.key) {
+      const swatch = document.createElement('span');
+      swatch.className = `stats-swatch stats-swatch--${line.key}`;
+      lineEl.appendChild(swatch);
+    }
+    const text = document.createElement('span');
+    text.textContent = line.text;
+    lineEl.appendChild(text);
+    stats.appendChild(lineEl);
+    if (index < lines.length - 1) {
+      stats.appendChild(document.createElement('br'));
+    }
+  });
 }
 
 function formatStatValue(value: number): string {
@@ -516,6 +602,27 @@ function isCountZeroStartMode(value: unknown): value is CountZeroStartMode {
   return value === 'first' || value === 'today' || value === 'custom';
 }
 
+function parseColorLabels(value: unknown): ColorLabels | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const raw = value as Record<string, unknown>;
+  const green = normalizeColorLabel(raw.green);
+  const red = normalizeColorLabel(raw.red);
+  const blue = normalizeColorLabel(raw.blue);
+  const labels: ColorLabels = {};
+  if (green) {
+    labels.green = green;
+  }
+  if (red) {
+    labels.red = red;
+  }
+  if (blue) {
+    labels.blue = blue;
+  }
+  return labels.green || labels.red || labels.blue ? labels : null;
+}
+
 function parseStoredStreakSettings(raw: unknown): Map<string, StreakSettings> {
   if (!Array.isArray(raw)) {
     return new Map();
@@ -538,7 +645,11 @@ function parseStoredStreakSettings(raw: unknown): Map<string, StreakSettings> {
     if (typeof date === 'string' && DATE_KEY_PATTERN.test(date)) {
       parsed.countZeroStartDate = date;
     }
-    if (parsed.countZeroStartMode || parsed.countZeroStartDate) {
+    const colorLabels = parseColorLabels((rawSettings as Record<string, unknown>).colorLabels);
+    if (colorLabels) {
+      parsed.colorLabels = colorLabels;
+    }
+    if (parsed.countZeroStartMode || parsed.countZeroStartDate || parsed.colorLabels) {
       settings.set(normalizeStreakName(entry[0]), parsed);
     }
   });
@@ -1315,6 +1426,71 @@ function openStreakSettingsModal(options: {
 
     actions.appendChild(cancelButton);
     actions.appendChild(saveButton);
+  } else if (options.streakType === STREAK_TYPES.Color) {
+    const fieldset = document.createElement('fieldset');
+    fieldset.className = 'streak-settings__fieldset';
+    const legend = document.createElement('legend');
+    legend.textContent = 'Color labels';
+    fieldset.appendChild(legend);
+
+    const labels = getColorLabels(options.settings);
+
+    const buildLabelInput = (color: ColorLabelKey, labelText: string, value: string) => {
+      const wrapper = document.createElement('label');
+      wrapper.className = 'streak-settings__label';
+      const text = document.createElement('span');
+      text.textContent = labelText;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.id = `streak-color-label-${color}`;
+      input.value = value;
+      wrapper.appendChild(text);
+      wrapper.appendChild(input);
+      return { wrapper, input };
+    };
+
+    const greenField = buildLabelInput('green', 'Green label', labels.green);
+    const redField = buildLabelInput('red', 'Red label', labels.red);
+    const blueField = buildLabelInput('blue', 'Blue label', labels.blue);
+
+    fieldset.appendChild(greenField.wrapper);
+    fieldset.appendChild(redField.wrapper);
+    fieldset.appendChild(blueField.wrapper);
+    body.appendChild(fieldset);
+
+    const cancelButton = document.createElement('button');
+    cancelButton.type = 'button';
+    cancelButton.textContent = 'Cancel';
+    cancelButton.addEventListener('click', closeModal);
+
+    const saveButton = document.createElement('button');
+    saveButton.type = 'button';
+    saveButton.className = 'streak-settings__save';
+    saveButton.textContent = 'Save';
+    saveButton.addEventListener('click', () => {
+      const labelsForSave: ColorLabels = {};
+      const greenValue = normalizeColorLabel(greenField.input.value);
+      const redValue = normalizeColorLabel(redField.input.value);
+      const blueValue = normalizeColorLabel(blueField.input.value);
+      if (greenValue && greenValue !== DEFAULT_COLOR_LABELS.green) {
+        labelsForSave.green = greenValue;
+      }
+      if (redValue && redValue !== DEFAULT_COLOR_LABELS.red) {
+        labelsForSave.red = redValue;
+      }
+      if (blueValue && blueValue !== DEFAULT_COLOR_LABELS.blue) {
+        labelsForSave.blue = blueValue;
+      }
+      const nextSettings: StreakSettings = {};
+      if (hasCustomColorLabels(labelsForSave)) {
+        nextSettings.colorLabels = labelsForSave;
+      }
+      options.onSave(nextSettings);
+      closeModal();
+    });
+
+    actions.appendChild(cancelButton);
+    actions.appendChild(saveButton);
   } else {
     const note = document.createElement('p');
     note.className = 'streak-settings__note';
@@ -1429,7 +1605,8 @@ function renderCalendars(
 
     const updateStats = () => {
       if (streakType === STREAK_TYPES.Color) {
-        stats.innerHTML = computeMonthStats(now, year, month, monthState).join('<br>');
+        const labels = getColorLabels(streakSettings.get(streakName));
+        renderColorStats(stats, computeMonthStats(now, year, month, monthState, labels));
       } else {
         const values = buildCountValuesForMonth(stateMap, year, month, now, getCountZeroStartDate());
         stats.textContent = buildCountStats(values).join(' ');
@@ -1709,10 +1886,9 @@ export async function setup(): Promise<void> {
           settings: streakSettings.get(selectedStreak),
           onSave: (nextSettings) => {
             void (async () => {
-              if (
-                nextSettings.countZeroStartMode === 'first' &&
-                !nextSettings.countZeroStartDate
-              ) {
+              const shouldStore =
+                hasCountSettings(nextSettings) || hasCustomColorLabels(nextSettings.colorLabels);
+              if (!shouldStore) {
                 streakSettings.delete(selectedStreak);
               } else {
                 streakSettings.set(selectedStreak, nextSettings);

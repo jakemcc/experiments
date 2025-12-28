@@ -131,6 +131,13 @@
       gap: 0.4rem;
       margin-bottom: 0.5rem;
     }
+    .streak-settings__label {
+      display: grid;
+      grid-template-columns: minmax(120px, 1fr) 1.5fr;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
     .streak-settings__date {
       margin-left: 1.6rem;
       margin-top: 0.4rem;
@@ -150,6 +157,36 @@
       margin: 0;
       color: #475569;
       font-size: 0.9rem;
+    }
+    .stats-line {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .stats-swatch {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      border: 1px solid rgba(0, 0, 0, 0.2);
+    }
+    .stats-swatch--red {
+      background-image:
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.5) 0, rgba(255, 255, 255, 0.5) 8px, transparent 8px, transparent 16px),
+        linear-gradient(135deg, #ff4d4f, #c62828);
+      background-size: 24px 24px;
+    }
+    .stats-swatch--green {
+      background-image:
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.45) 0, rgba(255, 255, 255, 0.45) 6px, transparent 6px, transparent 14px),
+        linear-gradient(180deg, #43a047, #2e7d32);
+      background-size: 20px 20px;
+    }
+    .stats-swatch--blue {
+      background-image:
+        radial-gradient(circle at 10px 10px, rgba(255, 255, 255, 0.55) 2px, transparent 3px),
+        linear-gradient(135deg, #87cefa, #4fc3f7);
+      background-size: 18px 18px;
     }
     #streak-controls {
       gap: 0.2rem;
