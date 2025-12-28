@@ -855,8 +855,20 @@ test('count streak settings persist and update the zero start option', async () 
 
     const todayOption = document.querySelector(
       'input[name="count-zero-start"][value="today"]',
+    ) as HTMLInputElement | null;
+    expect(todayOption).toBeNull();
+
+    const customOption = document.querySelector(
+      'input[name="count-zero-start"][value="custom"]',
     ) as HTMLInputElement;
-    todayOption.click();
+    customOption.click();
+    await flushAsyncOperations();
+
+    const customDate = document.querySelector(
+      '#streak-settings-modal .streak-settings__date',
+    ) as HTMLInputElement;
+    customDate.value = '2024-02-03';
+    customDate.dispatchEvent(new Event('input'));
     await flushAsyncOperations();
 
     const saveButton = document.querySelector(
@@ -867,8 +879,8 @@ test('count streak settings persist and update the zero start option', async () 
 
     const settings = await readStoredStreakSettings();
     expect(settings.get('Counts')).toEqual({
-      countZeroStartMode: 'today',
-      countZeroStartDate: '2024-02-05',
+      countZeroStartMode: 'custom',
+      countZeroStartDate: '2024-02-03',
     });
   } finally {
     promptSpy.mockRestore();

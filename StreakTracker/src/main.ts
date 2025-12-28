@@ -1320,8 +1320,12 @@ function openStreakSettingsModal(options: {
     legend.textContent = 'Include zeros from';
     fieldset.appendChild(legend);
 
-    const mode = options.settings?.countZeroStartMode ?? 'first';
-    const storedDate = options.settings?.countZeroStartDate ?? '';
+    const rawMode = options.settings?.countZeroStartMode ?? 'first';
+    const mode = rawMode === 'today' ? 'custom' : rawMode;
+    const storedDate =
+      rawMode === 'today'
+        ? options.settings?.countZeroStartDate ?? formatDateInputValue(new Date())
+        : options.settings?.countZeroStartDate ?? '';
 
     const optionFirst = document.createElement('label');
     optionFirst.className = 'streak-settings__option';
@@ -1333,17 +1337,6 @@ function openStreakSettingsModal(options: {
     optionFirst.appendChild(firstInput);
     optionFirst.appendChild(document.createTextNode('First recorded day'));
     fieldset.appendChild(optionFirst);
-
-    const optionToday = document.createElement('label');
-    optionToday.className = 'streak-settings__option';
-    const todayInput = document.createElement('input');
-    todayInput.type = 'radio';
-    todayInput.name = 'count-zero-start';
-    todayInput.value = 'today';
-    todayInput.checked = mode === 'today';
-    optionToday.appendChild(todayInput);
-    optionToday.appendChild(document.createTextNode('Today'));
-    fieldset.appendChild(optionToday);
 
     const optionCustom = document.createElement('label');
     optionCustom.className = 'streak-settings__option';
@@ -1379,7 +1372,6 @@ function openStreakSettingsModal(options: {
     };
 
     firstInput.addEventListener('change', updateCustomState);
-    todayInput.addEventListener('change', updateCustomState);
     customInput.addEventListener('change', updateCustomState);
     customDate.addEventListener('input', clearError);
 
@@ -1416,9 +1408,6 @@ function openStreakSettingsModal(options: {
           return;
         }
         nextSettings.countZeroStartDate = value;
-      }
-      if (nextMode === 'today') {
-        nextSettings.countZeroStartDate = formatDateInputValue(new Date());
       }
       options.onSave(nextSettings);
       closeModal();
