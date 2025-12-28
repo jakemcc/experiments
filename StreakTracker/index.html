@@ -98,6 +98,59 @@
       border: 0;
       white-space: nowrap;
     }
+    .streak-settings__overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      z-index: 1000;
+    }
+    .streak-settings__dialog {
+      background: #fff;
+      border-radius: 8px;
+      padding: 1rem;
+      width: min(420px, 100%);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+    }
+    .streak-settings__dialog h2 {
+      margin: 0 0 0.75rem;
+      font-size: 1.1rem;
+    }
+    .streak-settings__fieldset {
+      border: 1px solid #d7dde3;
+      border-radius: 6px;
+      padding: 0.75rem;
+      margin: 0;
+    }
+    .streak-settings__option {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.5rem;
+    }
+    .streak-settings__date {
+      margin-left: 1.6rem;
+      margin-top: 0.4rem;
+    }
+    .streak-settings__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .streak-settings__error {
+      color: #b00020;
+      margin: 0.4rem 0 0;
+      font-size: 0.85rem;
+    }
+    .streak-settings__note {
+      margin: 0;
+      color: #475569;
+      font-size: 0.9rem;
+    }
     #streak-controls {
       gap: 0.2rem;
     }

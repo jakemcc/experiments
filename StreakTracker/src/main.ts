@@ -4,6 +4,7 @@ const STORE_NAME = 'dayStates';
 const STREAK_STORE = 'streaks';
 const STREAK_LIST_KEY = 'names';
 const STREAK_TYPES_KEY = 'types';
+const STREAK_SETTINGS_KEY = 'settings';
 const LAST_UPDATED_KEY = 'lastUpdated';
 const DATE_KEY_PATTERN = /^\d{4}-\d{1,2}-\d{1,2}$/;
 const DAY_KEY_PATTERN = /^([^:]+)::(\d{4}-\d{1,2}-\d{1,2})$/;
@@ -19,6 +20,11 @@ export const DAY_STATES = {
 export type DayState = (typeof DAY_STATES)[keyof typeof DAY_STATES];
 type DayValue = number;
 type StreakType = 'color' | 'count';
+type CountZeroStartMode = 'first' | 'today' | 'custom';
+type StreakSettings = {
+  countZeroStartMode?: CountZeroStartMode;
+  countZeroStartDate?: string;
+};
 
 export const STREAK_TYPES = {
   Color: 'color',
@@ -149,18 +155,123 @@ function computeMonthStats(
   ];
 }
 
-function computeCountStats(
-  monthCounts: Map<number, number>,
-): string[] {
-  const values = Array.from(monthCounts.values());
-  return buildCountStats(values);
-}
-
 function formatStatValue(value: number): string {
   if (Number.isInteger(value)) {
     return String(value);
   }
   return value.toFixed(2);
+}
+
+function getFirstCountDateKey(stateMap: Map<string, DayValue>): string | null {
+  let earliestKey: string | null = null;
+  let earliestTime: number | null = null;
+  stateMap.forEach((value, dateKey) => {
+    if (value <= 0) {
+      return;
+    }
+    const time = dateKeyToTime(dateKey);
+    if (time === null) {
+      return;
+    }
+    if (earliestTime === null || time < earliestTime) {
+      earliestTime = time;
+      earliestKey = dateKey;
+    }
+  });
+  return earliestKey;
+}
+
+function resolveCountZeroStartDate(
+  settings: StreakSettings | undefined,
+  stateMap: Map<string, DayValue>,
+  now: Date,
+): string | null {
+  const mode = settings?.countZeroStartMode ?? 'first';
+  if (mode === 'custom') {
+    if (settings?.countZeroStartDate && DATE_KEY_PATTERN.test(settings.countZeroStartDate)) {
+      return settings.countZeroStartDate;
+    }
+    return null;
+  }
+  if (mode === 'today') {
+    return settings?.countZeroStartDate ?? formatDateInputValue(now);
+  }
+  return getFirstCountDateKey(stateMap);
+}
+
+function buildCountValuesForMonth(
+  stateMap: Map<string, DayValue>,
+  year: number,
+  month: number,
+  now: Date,
+  startDateKey: string | null,
+): number[] {
+  const values: number[] = [];
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let daysPassed = 0;
+  if (year === now.getFullYear() && month === now.getMonth() + 1) {
+    daysPassed = now.getDate();
+  } else if (
+    year < now.getFullYear() ||
+    (year === now.getFullYear() && month < now.getMonth() + 1)
+  ) {
+    daysPassed = daysInMonth;
+  }
+
+  const startTime = startDateKey ? dateKeyToTime(startDateKey) : null;
+  for (let day = 1; day <= daysPassed; day += 1) {
+    const dateKey = `${year}-${month}-${day}`;
+    const value = stateMap.get(dateKey);
+    const dayTime = dateKeyToTime(dateKey);
+    if (startTime !== null && dayTime !== null && dayTime >= startTime) {
+      values.push(value && value > 0 ? Math.floor(value) : 0);
+    } else if (value && value > 0) {
+      values.push(Math.floor(value));
+    }
+  }
+
+  return values;
+}
+
+function buildCountValuesForOverall(
+  stateMap: Map<string, DayValue>,
+  startDateKey: string | null,
+  now: Date,
+): number[] {
+  if (!startDateKey) {
+    return Array.from(stateMap.values())
+      .filter((value) => value > 0)
+      .map((value) => Math.floor(value));
+  }
+  const startTime = dateKeyToTime(startDateKey);
+  if (startTime === null) {
+    return Array.from(stateMap.values())
+      .filter((value) => value > 0)
+      .map((value) => Math.floor(value));
+  }
+  const values: number[] = [];
+  stateMap.forEach((value, dateKey) => {
+    if (value > 0) {
+      const time = dateKeyToTime(dateKey);
+      if (time !== null && time < startTime) {
+        values.push(Math.floor(value));
+      }
+    }
+  });
+
+  const rangeStart = new Date(startTime);
+  const rangeEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  for (
+    let cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate());
+    cursor <= rangeEnd;
+    cursor.setDate(cursor.getDate() + 1)
+  ) {
+    const dateKey = buildDateKeyFromDate(cursor);
+    const value = stateMap.get(dateKey);
+    values.push(value && value > 0 ? Math.floor(value) : 0);
+  }
+
+  return values;
 }
 
 function buildCountStats(values: number[]): string[] {
@@ -215,6 +326,17 @@ function dateKeyToTime(dateKey: string): number | null {
   }
   const time = new Date(parsed.year, parsed.month - 1, parsed.day).getTime();
   return Number.isNaN(time) ? null : time;
+}
+
+function buildDateKeyFromDate(date: Date): string {
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
+function formatDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function getLatestStateTimestamp(stateMap: Map<string, DayValue>): number {
@@ -390,6 +512,39 @@ function parseStoredStreakTypes(raw: unknown): Map<string, StreakType> {
   return new Map(entries);
 }
 
+function isCountZeroStartMode(value: unknown): value is CountZeroStartMode {
+  return value === 'first' || value === 'today' || value === 'custom';
+}
+
+function parseStoredStreakSettings(raw: unknown): Map<string, StreakSettings> {
+  if (!Array.isArray(raw)) {
+    return new Map();
+  }
+  const settings = new Map<string, StreakSettings>();
+  raw.forEach((entry) => {
+    if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string') {
+      return;
+    }
+    const rawSettings = entry[1];
+    if (!rawSettings || typeof rawSettings !== 'object') {
+      return;
+    }
+    const parsed: StreakSettings = {};
+    const mode = (rawSettings as Record<string, unknown>).countZeroStartMode;
+    if (isCountZeroStartMode(mode)) {
+      parsed.countZeroStartMode = mode;
+    }
+    const date = (rawSettings as Record<string, unknown>).countZeroStartDate;
+    if (typeof date === 'string' && DATE_KEY_PATTERN.test(date)) {
+      parsed.countZeroStartDate = date;
+    }
+    if (parsed.countZeroStartMode || parsed.countZeroStartDate) {
+      settings.set(normalizeStreakName(entry[0]), parsed);
+    }
+  });
+  return settings;
+}
+
 async function getStoredStreakTypes(db: IDBDatabase): Promise<Map<string, StreakType>> {
   const tx = db.transaction(STREAK_STORE, 'readonly');
   const store = tx.objectStore(STREAK_STORE);
@@ -397,11 +552,32 @@ async function getStoredStreakTypes(db: IDBDatabase): Promise<Map<string, Streak
   return parseStoredStreakTypes(result);
 }
 
+async function getStoredStreakSettings(db: IDBDatabase): Promise<Map<string, StreakSettings>> {
+  const tx = db.transaction(STREAK_STORE, 'readonly');
+  const store = tx.objectStore(STREAK_STORE);
+  const result = await storeGet<unknown>(
+    store,
+    STREAK_SETTINGS_KEY,
+    'Failed to load streak settings',
+  );
+  return parseStoredStreakSettings(result);
+}
+
 async function saveStreakTypes(db: IDBDatabase, types: Map<string, StreakType>): Promise<void> {
   const tx = db.transaction(STREAK_STORE, 'readwrite');
   const store = tx.objectStore(STREAK_STORE);
   store.put(Array.from(types.entries()), STREAK_TYPES_KEY);
   await transactionDone(tx, 'Failed to save streak types');
+}
+
+async function saveStreakSettings(
+  db: IDBDatabase,
+  settings: Map<string, StreakSettings>,
+): Promise<void> {
+  const tx = db.transaction(STREAK_STORE, 'readwrite');
+  const store = tx.objectStore(STREAK_STORE);
+  store.put(Array.from(settings.entries()), STREAK_SETTINGS_KEY);
+  await transactionDone(tx, 'Failed to save streak settings');
 }
 
 async function saveStreakNames(db: IDBDatabase, names: string[]): Promise<void> {
@@ -709,6 +885,7 @@ async function deleteStreak(
   db: IDBDatabase,
   streakStates: Map<string, Map<string, DayValue>>,
   streakTypes: Map<string, StreakType>,
+  streakSettings: Map<string, StreakSettings>,
   lastUpdated: Map<string, number>,
   streakNames: string[],
   streakName: string,
@@ -726,6 +903,10 @@ async function deleteStreak(
     streakTypes.delete(normalized);
     await saveStreakTypes(db, streakTypes);
   }
+  if (streakSettings.has(normalized)) {
+    streakSettings.delete(normalized);
+    await saveStreakSettings(db, streakSettings);
+  }
   return nextNames;
 }
 
@@ -733,6 +914,7 @@ async function renameStreak(
   db: IDBDatabase,
   streakStates: Map<string, Map<string, DayValue>>,
   streakTypes: Map<string, StreakType>,
+  streakSettings: Map<string, StreakSettings>,
   streakNames: string[],
   oldName: string,
   desiredName: string,
@@ -790,6 +972,21 @@ async function renameStreak(
   if (currentName !== newName && streakTypes.has(currentName)) {
     streakTypes.delete(currentName);
     await saveStreakTypes(db, streakTypes);
+  }
+
+  const existingSettings = streakSettings.get(newName);
+  const oldSettings = streakSettings.get(currentName);
+  let settingsChanged = false;
+  if (!existingSettings && oldSettings) {
+    streakSettings.set(newName, oldSettings);
+    settingsChanged = true;
+  }
+  if (currentName !== newName && streakSettings.has(currentName)) {
+    streakSettings.delete(currentName);
+    settingsChanged = true;
+  }
+  if (settingsChanged) {
+    await saveStreakSettings(db, streakSettings);
   }
 
   return { names: nextNames, selected: newName };
@@ -859,6 +1056,7 @@ function renderStreakControls(
   onSelect: (name: string) => void,
   onCreate: (name: string, streakType: StreakType) => void,
   onRename: (name: string) => void,
+  onSettings: () => void,
   onDelete: () => void,
 ): void {
   controlsContainer.innerHTML = '';
@@ -911,6 +1109,17 @@ function renderStreakControls(
   });
   pillsWrapper.appendChild(renameButton);
 
+  const settingsButton = document.createElement('button');
+  settingsButton.type = 'button';
+  settingsButton.className = 'icon-button streak-settings';
+  settingsButton.title = 'Streak settings';
+  settingsButton.setAttribute('aria-label', 'Open streak settings');
+  settingsButton.textContent = 'Settings';
+  settingsButton.addEventListener('click', () => {
+    onSettings();
+  });
+  pillsWrapper.appendChild(settingsButton);
+
   const deleteButton = document.createElement('button');
   deleteButton.type = 'button';
   deleteButton.className = 'icon-button streak-delete';
@@ -962,6 +1171,180 @@ function renderStreakControls(
   controlsContainer.appendChild(row);
 }
 
+function openStreakSettingsModal(options: {
+  streakName: string;
+  streakType: StreakType;
+  settings: StreakSettings | undefined;
+  onSave: (nextSettings: StreakSettings) => void;
+}): void {
+  const existing = document.getElementById('streak-settings-modal');
+  if (existing) {
+    existing.remove();
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'streak-settings-modal';
+  overlay.className = 'streak-settings__overlay';
+  const dialog = document.createElement('div');
+  dialog.className = 'streak-settings__dialog';
+
+  const title = document.createElement('h2');
+  title.textContent = `Streak settings: ${options.streakName}`;
+  dialog.appendChild(title);
+
+  const body = document.createElement('div');
+  dialog.appendChild(body);
+
+  const actions = document.createElement('div');
+  actions.className = 'streak-settings__actions';
+
+  const closeModal = () => {
+    overlay.remove();
+  };
+
+  if (options.streakType === STREAK_TYPES.Count) {
+    const fieldset = document.createElement('fieldset');
+    fieldset.className = 'streak-settings__fieldset';
+    const legend = document.createElement('legend');
+    legend.textContent = 'Include zeros from';
+    fieldset.appendChild(legend);
+
+    const mode = options.settings?.countZeroStartMode ?? 'first';
+    const storedDate = options.settings?.countZeroStartDate ?? '';
+
+    const optionFirst = document.createElement('label');
+    optionFirst.className = 'streak-settings__option';
+    const firstInput = document.createElement('input');
+    firstInput.type = 'radio';
+    firstInput.name = 'count-zero-start';
+    firstInput.value = 'first';
+    firstInput.checked = mode === 'first';
+    optionFirst.appendChild(firstInput);
+    optionFirst.appendChild(document.createTextNode('First recorded day'));
+    fieldset.appendChild(optionFirst);
+
+    const optionToday = document.createElement('label');
+    optionToday.className = 'streak-settings__option';
+    const todayInput = document.createElement('input');
+    todayInput.type = 'radio';
+    todayInput.name = 'count-zero-start';
+    todayInput.value = 'today';
+    todayInput.checked = mode === 'today';
+    optionToday.appendChild(todayInput);
+    optionToday.appendChild(document.createTextNode('Today'));
+    fieldset.appendChild(optionToday);
+
+    const optionCustom = document.createElement('label');
+    optionCustom.className = 'streak-settings__option';
+    const customInput = document.createElement('input');
+    customInput.type = 'radio';
+    customInput.name = 'count-zero-start';
+    customInput.value = 'custom';
+    customInput.checked = mode === 'custom';
+    optionCustom.appendChild(customInput);
+    optionCustom.appendChild(document.createTextNode('Custom date'));
+    fieldset.appendChild(optionCustom);
+
+    const customDate = document.createElement('input');
+    customDate.type = 'date';
+    customDate.className = 'streak-settings__date';
+    customDate.value = mode === 'custom' ? storedDate : '';
+    customDate.disabled = mode !== 'custom';
+    fieldset.appendChild(customDate);
+
+    const error = document.createElement('p');
+    error.className = 'streak-settings__error';
+    error.hidden = true;
+    fieldset.appendChild(error);
+
+    const clearError = () => {
+      error.hidden = true;
+      error.textContent = '';
+    };
+
+    const updateCustomState = () => {
+      customDate.disabled = !customInput.checked;
+      clearError();
+    };
+
+    firstInput.addEventListener('change', updateCustomState);
+    todayInput.addEventListener('change', updateCustomState);
+    customInput.addEventListener('change', updateCustomState);
+    customDate.addEventListener('input', clearError);
+
+    body.appendChild(fieldset);
+
+    const cancelButton = document.createElement('button');
+    cancelButton.type = 'button';
+    cancelButton.textContent = 'Cancel';
+    cancelButton.addEventListener('click', closeModal);
+
+    const saveButton = document.createElement('button');
+    saveButton.type = 'button';
+    saveButton.className = 'streak-settings__save';
+    saveButton.textContent = 'Save';
+    saveButton.addEventListener('click', () => {
+      const selected = (
+        document.querySelector('input[name="count-zero-start"]:checked') as HTMLInputElement | null
+      )?.value as CountZeroStartMode | undefined;
+      const nextMode: CountZeroStartMode = selected ?? 'first';
+      const nextSettings: StreakSettings = { countZeroStartMode: nextMode };
+      if (nextMode === 'custom') {
+        const value = customDate.value;
+        const parsedTime = dateKeyToTime(value);
+        const todayValue = formatDateInputValue(new Date());
+        const todayTime = dateKeyToTime(todayValue);
+        if (!value || parsedTime === null) {
+          error.textContent = 'Enter a valid date.';
+          error.hidden = false;
+          return;
+        }
+        if (todayTime !== null && parsedTime > todayTime) {
+          error.textContent = 'Choose today or earlier.';
+          error.hidden = false;
+          return;
+        }
+        nextSettings.countZeroStartDate = value;
+      }
+      if (nextMode === 'today') {
+        nextSettings.countZeroStartDate = formatDateInputValue(new Date());
+      }
+      options.onSave(nextSettings);
+      closeModal();
+    });
+
+    actions.appendChild(cancelButton);
+    actions.appendChild(saveButton);
+  } else {
+    const note = document.createElement('p');
+    note.className = 'streak-settings__note';
+    note.textContent = 'No settings for this streak type yet.';
+    body.appendChild(note);
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.textContent = 'Close';
+    closeButton.addEventListener('click', closeModal);
+    actions.appendChild(closeButton);
+  }
+
+  dialog.appendChild(actions);
+  overlay.appendChild(dialog);
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      closeModal();
+    }
+  });
+  overlay.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeModal();
+    }
+  });
+  overlay.tabIndex = -1;
+  document.body.appendChild(overlay);
+  overlay.focus();
+}
+
 function ensureControlsContainer(calendars: HTMLElement): HTMLElement {
   const existing = document.getElementById('streak-controls');
   if (existing) {
@@ -980,6 +1363,7 @@ function renderCalendars(
   db: IDBDatabase,
   streakStates: Map<string, Map<string, DayValue>>,
   streakTypes: Map<string, StreakType>,
+  streakSettings: Map<string, StreakSettings>,
   lastUpdated: Map<string, number>,
 ): void {
   container.innerHTML = '';
@@ -996,11 +1380,13 @@ function renderCalendars(
     return b.year - a.year;
   });
   let overallStats: HTMLParagraphElement | null = null;
+  const getCountZeroStartDate = () =>
+    resolveCountZeroStartDate(streakSettings.get(streakName), stateMap, now);
   const updateOverallStats = () => {
     if (!overallStats) {
       return;
     }
-    const values = Array.from(stateMap.values()).filter((value) => value > 0);
+    const values = buildCountValuesForOverall(stateMap, getCountZeroStartDate(), now);
     overallStats.textContent = buildCountStats(values).slice(1).join(' ');
   };
   if (streakType === STREAK_TYPES.Count) {
@@ -1045,7 +1431,8 @@ function renderCalendars(
       if (streakType === STREAK_TYPES.Color) {
         stats.innerHTML = computeMonthStats(now, year, month, monthState).join('<br>');
       } else {
-        stats.textContent = computeCountStats(monthCounts).join(' ');
+        const values = buildCountValuesForMonth(stateMap, year, month, now, getCountZeroStartDate());
+        stats.textContent = buildCountStats(values).join(' ');
         updateOverallStats();
       }
     };
@@ -1188,6 +1575,12 @@ export async function setup(): Promise<void> {
     console.error('Failed to load streak names', error);
   }
   let streakTypes = await getStoredStreakTypes(db);
+  let streakSettings = new Map<string, StreakSettings>();
+  try {
+    streakSettings = await getStoredStreakSettings(db);
+  } catch (error) {
+    console.error('Failed to load streak settings', error);
+  }
   const lastUpdated = await getLastUpdatedMap(db);
 
   const normalizedStoredNames = storedNames.map(normalizeStreakName);
@@ -1238,7 +1631,16 @@ export async function setup(): Promise<void> {
   };
 
   const rerenderAll = () => {
-    renderCalendars(container, selectedStreak, now, db, streakStates, streakTypes, lastUpdated);
+    renderCalendars(
+      container,
+      selectedStreak,
+      now,
+      db,
+      streakStates,
+      streakTypes,
+      streakSettings,
+      lastUpdated,
+    );
     renderControls();
   };
 
@@ -1282,6 +1684,7 @@ export async function setup(): Promise<void> {
             db,
             streakStates,
             streakTypes,
+            streakSettings,
             streakNames,
             selectedStreak,
             name,
@@ -1294,6 +1697,36 @@ export async function setup(): Promise<void> {
         } catch (error) {
           console.error('Failed to rename streak', error);
         }
+      },
+      () => {
+        if (!selectedStreak) {
+          return;
+        }
+        const streakType = streakTypes.get(selectedStreak) ?? STREAK_TYPES.Color;
+        openStreakSettingsModal({
+          streakName: selectedStreak,
+          streakType,
+          settings: streakSettings.get(selectedStreak),
+          onSave: (nextSettings) => {
+            void (async () => {
+              if (
+                nextSettings.countZeroStartMode === 'first' &&
+                !nextSettings.countZeroStartDate
+              ) {
+                streakSettings.delete(selectedStreak);
+              } else {
+                streakSettings.set(selectedStreak, nextSettings);
+              }
+              try {
+                await saveStreakSettings(db, streakSettings);
+                rerenderAll();
+              } catch (error) {
+                console.error('Failed to save streak settings', error);
+                alert('Failed to save streak settings.');
+              }
+            })();
+          },
+        });
       },
       async () => {
         if (!selectedStreak) {
@@ -1310,6 +1743,7 @@ export async function setup(): Promise<void> {
             db,
             streakStates,
             streakTypes,
+            streakSettings,
             lastUpdated,
             streakNames,
             selectedStreak,
@@ -1320,11 +1754,13 @@ export async function setup(): Promise<void> {
             await saveLastUpdatedMap(db, lastUpdated);
             streakStates.clear();
             streakTypes.clear();
+            streakSettings.clear();
             selectedStreak = DEFAULT_STREAK_NAME;
             streakStates.set(selectedStreak, new Map());
             streakNames = [selectedStreak];
             await saveStreakNames(db, streakNames);
             await saveStreakTypes(db, streakTypes);
+            await saveStreakSettings(db, streakSettings);
             await ensureStreakExists(selectedStreak, STREAK_TYPES.Color);
             await recordStreakActivity(db, lastUpdated, selectedStreak);
           } else {
@@ -1349,7 +1785,16 @@ export async function setup(): Promise<void> {
   };
 
   renderControls();
-  renderCalendars(container, selectedStreak, now, db, streakStates, streakTypes, lastUpdated);
+  renderCalendars(
+    container,
+    selectedStreak,
+    now,
+    db,
+    streakStates,
+    streakTypes,
+    streakSettings,
+    lastUpdated,
+  );
 }
 
 function registerServiceWorker() {

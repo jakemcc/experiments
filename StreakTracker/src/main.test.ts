@@ -94,6 +94,25 @@ async function readStoredStreakTypes(): Promise<Map<string, string>> {
   });
 }
 
+async function readStoredStreakSettings(): Promise<Map<string, Record<string, unknown>>> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('streak-tracker', 2);
+    request.onerror = () => reject(request.error ?? new Error('open failed'));
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction('streaks', 'readonly');
+      const store = tx.objectStore('streaks');
+      const getRequest = store.get('settings');
+      getRequest.onerror = () => reject(getRequest.error ?? new Error('read failed'));
+      getRequest.onsuccess = () => {
+        const result = getRequest.result;
+        db.close();
+        resolve(new Map(Array.isArray(result) ? result : []));
+      };
+    };
+  });
+}
+
 beforeEach(async () => {
   document.body.innerHTML = '';
   localStorage.clear();
@@ -698,4 +717,131 @@ test('count streak increments and clamps at zero', async () => {
     promptSpy.mockRestore();
     restoreDate();
   }
+});
+
+test('count streak stats include zeros from first recorded day', async () => {
+  const restoreDate = mockDate('2024-02-05T12:00:00');
+  const promptSpy = jest
+    .spyOn(window, 'prompt')
+    .mockImplementationOnce(() => 'Counts')
+    .mockImplementationOnce(() => 'Count');
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+    const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
+    addButton.click();
+    await flushAsyncOperations();
+
+    const countPill = await (async () => {
+      await waitForCondition(() =>
+        Array.from(document.querySelectorAll('.streak-pill')).some(
+          (el) => el.textContent === 'Counts'
+        )
+      );
+      return Array.from(document.querySelectorAll('.streak-pill')).find(
+        (el) => el.textContent === 'Counts'
+      ) as HTMLButtonElement;
+    })();
+    countPill.click();
+    await flushAsyncOperations();
+
+    const dayTwo = getDayCell('2');
+    const dayFour = getDayCell('4');
+    const dayTwoIncrement = dayTwo.querySelector(
+      '.day-count__control--plus',
+    ) as HTMLButtonElement;
+    const dayFourIncrement = dayFour.querySelector(
+      '.day-count__control--plus',
+    ) as HTMLButtonElement;
+
+    dayTwoIncrement.click();
+    await flushAsyncOperations();
+    dayTwoIncrement.click();
+    await flushAsyncOperations();
+
+    for (let i = 0; i < 4; i += 1) {
+      dayFourIncrement.click();
+      await flushAsyncOperations();
+    }
+
+    const stats = Array.from(document.querySelectorAll('.stats')).find(
+      (element) => !(element as HTMLElement).classList.contains('stats--overall')
+    ) as HTMLParagraphElement;
+    const overallStats = document.querySelector('.stats--overall') as HTMLParagraphElement;
+    const expectedStats = 'Total count: 6 Median count: 1 Mean count: 1.50';
+    const expectedOverall = 'Median count: 1 Mean count: 1.50';
+
+    await waitForCondition(
+      () => stats.textContent === expectedStats && overallStats.textContent === expectedOverall,
+    );
+    expect(stats.textContent).toBe(expectedStats);
+    expect(overallStats.textContent).toBe(expectedOverall);
+  } finally {
+    promptSpy.mockRestore();
+    restoreDate();
+  }
+});
+
+test('count streak settings persist and update the zero start option', async () => {
+  const restoreDate = mockDate('2024-02-05T12:00:00');
+  const promptSpy = jest
+    .spyOn(window, 'prompt')
+    .mockImplementationOnce(() => 'Counts')
+    .mockImplementationOnce(() => 'Count');
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+    const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
+    addButton.click();
+    await flushAsyncOperations();
+
+    const countPill = await (async () => {
+      await waitForCondition(() =>
+        Array.from(document.querySelectorAll('.streak-pill')).some(
+          (el) => el.textContent === 'Counts'
+        )
+      );
+      return Array.from(document.querySelectorAll('.streak-pill')).find(
+        (el) => el.textContent === 'Counts'
+      ) as HTMLButtonElement;
+    })();
+    countPill.click();
+    await flushAsyncOperations();
+
+    const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+    settingsButton.click();
+    await flushAsyncOperations();
+
+    const todayOption = document.querySelector(
+      'input[name="count-zero-start"][value="today"]',
+    ) as HTMLInputElement;
+    todayOption.click();
+    await flushAsyncOperations();
+
+    const saveButton = document.querySelector(
+      '#streak-settings-modal .streak-settings__save',
+    ) as HTMLButtonElement;
+    saveButton.click();
+    await flushAsyncOperations();
+
+    const settings = await readStoredStreakSettings();
+    expect(settings.get('Counts')).toEqual({
+      countZeroStartMode: 'today',
+      countZeroStartDate: '2024-02-05',
+    });
+  } finally {
+    promptSpy.mockRestore();
+    restoreDate();
+  }
+});
+
+test('color streak settings hide count-only options', async () => {
+  document.body.innerHTML = '<div id="calendars"></div>';
+  await setup();
+  const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+  settingsButton.click();
+  await flushAsyncOperations();
+
+  const countOptions = document.querySelectorAll('input[name="count-zero-start"]');
+  expect(countOptions.length).toBe(0);
 });
