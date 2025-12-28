@@ -289,6 +289,14 @@ test('color settings rename labels and show swatches in stats', async () => {
   expect(document.querySelectorAll('.stats-swatch--blue').length).toBe(1);
 });
 
+test('settings button uses a gear icon', async () => {
+  document.body.innerHTML = '<div id="calendars"></div>';
+  await setup();
+
+  const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+  expect(settingsButton.textContent).toBe('\u2699');
+});
+
 test('when default streak is missing it selects the most recently updated streak', async () => {
   await new Promise<void>((resolve, reject) => {
     const request = indexedDB.open('streak-tracker', 2);

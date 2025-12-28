@@ -1225,7 +1225,7 @@ function renderStreakControls(
   settingsButton.className = 'icon-button streak-settings';
   settingsButton.title = 'Streak settings';
   settingsButton.setAttribute('aria-label', 'Open streak settings');
-  settingsButton.textContent = 'Settings';
+  settingsButton.textContent = '\u2699';
   settingsButton.addEventListener('click', () => {
     onSettings();
   });
