@@ -204,12 +204,12 @@ function computeMonthStats(
 
   return [
     {
-      key: 'green',
-      text: `${labels.green} days: ${colorCounts.green}/${daysPassed}, Longest ${labels.green} streak: ${longestStreaks.green}`,
-    },
-    {
       key: 'red',
       text: `${labels.red} days: ${colorCounts.red}/${daysPassed}, Longest ${labels.red} streak: ${longestStreaks.red}`,
+    },
+    {
+      key: 'green',
+      text: `${labels.green} days: ${colorCounts.green}/${daysPassed}, Longest ${labels.green} streak: ${longestStreaks.green}`,
     },
     {
       key: 'blue',
@@ -362,7 +362,7 @@ function buildCountValuesForOverall(
 
 function buildCountStats(values: number[]): string[] {
   if (values.length === 0) {
-    return ['Total count: 0', 'Median count: 0', 'Mean count: 0'];
+     return ['Total: 0', 'Median: 0', 'Mean: 0'];
   }
   const total = values.reduce((sum, value) => sum + value, 0);
   const sorted = [...values].sort((a, b) => a - b);
@@ -373,9 +373,9 @@ function buildCountStats(values: number[]): string[] {
       : sorted[midpoint];
   const mean = total / values.length;
   return [
-    `Total count: ${formatStatValue(total)}`,
-    `Median count: ${formatStatValue(median)}`,
-    `Mean count: ${formatStatValue(mean)}`,
+    `Total: ${formatStatValue(total)}`,
+    `Median: ${formatStatValue(median)}`,
+    `Mean: ${formatStatValue(mean)}`,
   ];
 }
 
