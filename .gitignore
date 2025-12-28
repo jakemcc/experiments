@@ -2,6 +2,7 @@ Commitment/dist/
 Commitment/node_modules/
 StreakTracker/dist/
 StreakTracker/node_modules/
+.worktrees/
 .cpcache
 .cache
 site
