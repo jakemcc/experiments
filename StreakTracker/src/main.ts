@@ -285,6 +285,33 @@ function resolveCountZeroStartDate(
   return getFirstCountDateKey(stateMap);
 }
 
+function buildCountValuesFromStart(
+  stateMap: Map<string, DayValue>,
+  startDateKey: string | null,
+  now: Date,
+): number[] {
+  if (!startDateKey) {
+    return [];
+  }
+  const startTime = dateKeyToTime(startDateKey);
+  if (startTime === null) {
+    return [];
+  }
+  const values: number[] = [];
+  const rangeStart = new Date(startTime);
+  const rangeEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  for (
+    let cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate());
+    cursor <= rangeEnd;
+    cursor.setDate(cursor.getDate() + 1)
+  ) {
+    const dateKey = buildDateKeyFromDate(cursor);
+    const value = stateMap.get(dateKey);
+    values.push(value && value > 0 ? Math.floor(value) : 0);
+  }
+  return values;
+}
+
 function buildCountValuesForMonth(
   stateMap: Map<string, DayValue>,
   year: number,
@@ -305,14 +332,15 @@ function buildCountValuesForMonth(
   }
 
   const startTime = startDateKey ? dateKeyToTime(startDateKey) : null;
+  if (startTime === null) {
+    return values;
+  }
   for (let day = 1; day <= daysPassed; day += 1) {
     const dateKey = `${year}-${month}-${day}`;
     const value = stateMap.get(dateKey);
     const dayTime = dateKeyToTime(dateKey);
-    if (startTime !== null && dayTime !== null && dayTime >= startTime) {
+    if (dayTime !== null && dayTime >= startTime) {
       values.push(value && value > 0 ? Math.floor(value) : 0);
-    } else if (value && value > 0) {
-      values.push(Math.floor(value));
     }
   }
 
@@ -324,40 +352,7 @@ function buildCountValuesForOverall(
   startDateKey: string | null,
   now: Date,
 ): number[] {
-  if (!startDateKey) {
-    return Array.from(stateMap.values())
-      .filter((value) => value > 0)
-      .map((value) => Math.floor(value));
-  }
-  const startTime = dateKeyToTime(startDateKey);
-  if (startTime === null) {
-    return Array.from(stateMap.values())
-      .filter((value) => value > 0)
-      .map((value) => Math.floor(value));
-  }
-  const values: number[] = [];
-  stateMap.forEach((value, dateKey) => {
-    if (value > 0) {
-      const time = dateKeyToTime(dateKey);
-      if (time !== null && time < startTime) {
-        values.push(Math.floor(value));
-      }
-    }
-  });
-
-  const rangeStart = new Date(startTime);
-  const rangeEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  for (
-    let cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate());
-    cursor <= rangeEnd;
-    cursor.setDate(cursor.getDate() + 1)
-  ) {
-    const dateKey = buildDateKeyFromDate(cursor);
-    const value = stateMap.get(dateKey);
-    values.push(value && value > 0 ? Math.floor(value) : 0);
-  }
-
-  return values;
+  return buildCountValuesFromStart(stateMap, startDateKey, now);
 }
 
 function buildCountStats(values: number[]): string[] {
