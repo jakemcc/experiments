@@ -75,6 +75,17 @@ export function migrateStreakTypes(
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null;
+let refreshHandler: (() => void) | null = null;
+let refreshHandlersBound = false;
+
+function bindRefreshHandlers(): void {
+  if (refreshHandlersBound || typeof window === 'undefined' || typeof document === 'undefined') {
+    return;
+  }
+  window.addEventListener('focus', () => refreshHandler?.());
+  document.addEventListener('visibilitychange', () => refreshHandler?.());
+  refreshHandlersBound = true;
+}
 
 function applyDayStateClass(cell: HTMLElement, state: DayState): void {
   cell.classList.remove('red', 'green', 'blue');
@@ -1723,7 +1734,7 @@ export async function setup(): Promise<void> {
   controls.innerHTML = '';
   container.innerHTML = '';
 
-  const now = new Date();
+  let now = new Date();
   const db = await getDb();
   await migrateFromLocalStorage(db);
   await migrateUnscopedDayStates(db);
@@ -1804,6 +1815,12 @@ export async function setup(): Promise<void> {
     );
     renderControls();
   };
+
+  refreshHandler = () => {
+    now = new Date();
+    rerenderAll();
+  };
+  bindRefreshHandlers();
 
   const ensureStreakExists = async (name: string, streakType?: StreakType) => {
     if (!streakNames.includes(name)) {

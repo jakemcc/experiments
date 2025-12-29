@@ -647,6 +647,29 @@ test('stats update for all colors and streaks', async () => {
   restoreDate();
 });
 
+test('focus refresh updates date-dependent stats', async () => {
+  const restoreDate = mockDate('2024-06-10T12:00:00Z');
+  document.body.innerHTML = '<div id="calendars"></div>';
+  await setup();
+
+  const getStatsText = () => {
+    const stats = document.querySelector('.stats') as HTMLElement | null;
+    return stats?.textContent ?? '';
+  };
+
+  expect(getStatsText()).toContain('/10');
+
+  restoreDate();
+  const restoreNext = mockDate('2024-06-11T12:00:00Z');
+
+  window.dispatchEvent(new Event('focus'));
+
+  await waitForCondition(() => getStatsText().includes('/11'));
+  expect(getStatsText()).toContain('/11');
+
+  restoreNext();
+});
+
 test('longest green or blue streak spans both colors', async () => {
   const restoreDate = mockDate('2023-06-15T00:00:00Z');
   try {
