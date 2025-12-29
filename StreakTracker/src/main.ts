@@ -1312,7 +1312,7 @@ function openStreakSettingsModal(options: {
     const fieldset = document.createElement('fieldset');
     fieldset.className = 'streak-settings__fieldset';
     const legend = document.createElement('legend');
-    legend.textContent = 'Include zeros from';
+    legend.textContent = 'Start from date';
     fieldset.appendChild(legend);
 
     const rawMode = options.settings?.countZeroStartMode ?? 'first';

@@ -930,6 +930,43 @@ test('count streak stats start from custom date', async () => {
   }
 });
 
+test('count settings use the start from date label', async () => {
+  const promptSpy = jest
+    .spyOn(window, 'prompt')
+    .mockImplementationOnce(() => 'Counts')
+    .mockImplementationOnce(() => 'Count');
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+
+    const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
+    addButton.click();
+    await flushAsyncOperations();
+
+    const countPill = await (async () => {
+      await waitForCondition(() =>
+        Array.from(document.querySelectorAll('.streak-pill')).some(
+          (el) => el.textContent === 'Counts'
+        )
+      );
+      return Array.from(document.querySelectorAll('.streak-pill')).find(
+        (el) => el.textContent === 'Counts'
+      ) as HTMLButtonElement;
+    })();
+    countPill.click();
+    await flushAsyncOperations();
+
+    const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+    settingsButton.click();
+    await flushAsyncOperations();
+
+    const legend = document.querySelector('#streak-settings-modal legend') as HTMLElement;
+    expect(legend.textContent).toBe('Start from date');
+  } finally {
+    promptSpy.mockRestore();
+  }
+});
+
 test('count streak settings persist and update the zero start option', async () => {
   const restoreDate = mockDate('2024-02-05T12:00:00');
   const promptSpy = jest
