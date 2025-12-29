@@ -247,6 +247,53 @@ test('renaming a streak keeps its data and updates selection', async () => {
   }
 });
 
+test('renaming to an existing streak name is blocked', async () => {
+  const promptSpy = jest
+    .spyOn(window, 'prompt')
+    .mockImplementationOnce(() => 'Work')
+    .mockImplementationOnce(() => 'Colors')
+    .mockImplementationOnce(() => 'Home')
+    .mockImplementationOnce(() => 'Colors')
+    .mockImplementationOnce(() => 'Home');
+  const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+
+    const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
+    addButton.click();
+    await flushAsyncOperations();
+    addButton.click();
+    await flushAsyncOperations();
+
+    const workPill = Array.from(document.querySelectorAll('.streak-pill')).find(
+      (el) => el.textContent === 'Work'
+    ) as HTMLButtonElement;
+    workPill.click();
+    await flushAsyncOperations();
+
+    const renameButton = document.querySelector('.streak-rename') as HTMLButtonElement;
+    renameButton.click();
+    await flushAsyncOperations();
+
+    expect(alertSpy).toHaveBeenCalled();
+    const pills = Array.from(document.querySelectorAll('.streak-pill')).map(
+      (pill) => (pill as HTMLButtonElement).textContent
+    );
+    expect(pills).toContain('Work');
+    expect(pills).toContain('Home');
+
+    const active = document.querySelector('.streak-pill[aria-pressed="true"]') as
+      | HTMLButtonElement
+      | null;
+    expect(active?.textContent).toBe('Work');
+    expect(window.location.hash).toBe('#Work');
+  } finally {
+    promptSpy.mockRestore();
+    alertSpy.mockRestore();
+  }
+});
+
 test('color settings rename labels and show swatches in stats', async () => {
   document.body.innerHTML = '<div id="calendars"></div>';
   await setup();

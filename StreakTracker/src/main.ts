@@ -1840,6 +1840,10 @@ export async function setup(): Promise<void> {
         }
         try {
           const name = normalizeStreakName(trimmed);
+          if (name !== selectedStreak && streakNames.includes(name)) {
+            alert('A streak with that name already exists.');
+            return;
+          }
           const previousName = selectedStreak;
           const result = await renameStreak(
             db,
