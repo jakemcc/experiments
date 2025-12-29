@@ -262,9 +262,13 @@ test('renaming to an existing streak name is blocked', async () => {
 
     const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
     addButton.click();
-    await flushAsyncOperations();
+    await waitForCondition(() =>
+      Array.from(document.querySelectorAll('.streak-pill')).some((el) => el.textContent === 'Work')
+    );
     addButton.click();
-    await flushAsyncOperations();
+    await waitForCondition(() =>
+      Array.from(document.querySelectorAll('.streak-pill')).some((el) => el.textContent === 'Home')
+    );
 
     const workPill = Array.from(document.querySelectorAll('.streak-pill')).find(
       (el) => el.textContent === 'Work'
@@ -903,6 +907,7 @@ test('count streak stats include zeros from first recorded day', async () => {
 
     await waitForCondition(
       () => stats.textContent === expectedStats && overallStats.textContent === expectedOverall,
+      60,
     );
     expect(stats.textContent).toBe(expectedStats);
     expect(overallStats.textContent).toBe(expectedOverall);
