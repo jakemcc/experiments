@@ -35,4 +35,26 @@
                                              :pl/climbing}}
                              :pl/climbing)))))
 
+(deftest item-accepts-category
+  (is (= {:type :item :value "socks" :category :clothing}
+         (pl/i :clothing "socks"))))
+
+(deftest items-by-category-orders-and-sorts
+  (let [items #{(pl/i :accessories-tech "charger")
+                (pl/i :clothing "socks")
+                (pl/i :clothing "shoes")}
+        grouped (pl/items-by-category items)]
+    (is (= [{:category :clothing
+             :items [(pl/i :clothing "shoes")
+                     (pl/i :clothing "socks")]}
+            {:category :accessories-tech
+             :items [(pl/i :accessories-tech "charger")]}]
+           grouped))))
+
+(deftest items-by-category-unknown-falls-back
+  (let [items #{(pl/i :mystery "mystery item")}
+        grouped (pl/items-by-category items)]
+    (is (= [{:category :uncategorized
+             :items [(pl/i :uncategorized "mystery item")]}]
+           grouped))))
 
