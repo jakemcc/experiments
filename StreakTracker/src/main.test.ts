@@ -75,6 +75,22 @@ function getDayCell(day: string): HTMLElement {
   return cell;
 }
 
+function getOverviewCell(streakName: string, dateKey: string): HTMLElement {
+  const row = Array.from(document.querySelectorAll('.overview-row')).find(
+    (element) => (element as HTMLElement).dataset.streak === streakName,
+  ) as HTMLElement | undefined;
+  if (!row) {
+    throw new Error(`Unable to find overview row for ${streakName}`);
+  }
+  const cell = Array.from(row.querySelectorAll('.overview-day')).find(
+    (element) => (element as HTMLElement).dataset.dateKey === dateKey,
+  ) as HTMLElement | undefined;
+  if (!cell) {
+    throw new Error(`Unable to find overview day cell ${dateKey} for ${streakName}`);
+  }
+  return cell;
+}
+
 async function readStoredStreakTypes(): Promise<Map<string, string>> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('streak-tracker', 2);
@@ -1116,4 +1132,102 @@ test('color streak settings hide count-only options', async () => {
 
   const countOptions = document.querySelectorAll('input[name="count-zero-start"]');
   expect(countOptions.length).toBe(0);
+});
+
+test('overview mode shows 7-day strips and updates color streak', async () => {
+  const restoreDate = mockDate('2024-03-20T12:00:00Z');
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+
+    const overviewButton = document.querySelector('[data-view="overview"]') as HTMLButtonElement;
+    overviewButton.click();
+    await flushAsyncOperations();
+
+    const rows = document.querySelectorAll('.overview-row');
+    expect(rows.length).toBe(1);
+    const dayCells = rows[0].querySelectorAll('.overview-day');
+    expect(dayCells.length).toBe(7);
+
+    const todayKey = '2024-3-20';
+    const cell = getOverviewCell('My Streak', todayKey);
+    cell.click();
+    await flushAsyncOperations();
+    expect(cell.classList.contains('red')).toBe(true);
+
+    const fullButton = document.querySelector('[data-view="full"]') as HTMLButtonElement;
+    fullButton.click();
+    await flushAsyncOperations();
+
+    const fullCell = getDayCell('20');
+    expect(fullCell.classList.contains('red')).toBe(true);
+  } finally {
+    restoreDate();
+  }
+});
+
+test('overview mode increments count streak and persists', async () => {
+  const restoreDate = mockDate('2024-03-20T12:00:00Z');
+  const promptSpy = jest
+    .spyOn(window, 'prompt')
+    .mockImplementationOnce(() => 'Counts')
+    .mockImplementationOnce(() => 'Count');
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+
+    const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
+    addButton.click();
+    await flushAsyncOperations();
+
+    const overviewButton = document.querySelector('[data-view="overview"]') as HTMLButtonElement;
+    overviewButton.click();
+    await flushAsyncOperations();
+
+    const todayKey = '2024-3-20';
+    const cell = getOverviewCell('Counts', todayKey);
+    cell.click();
+    await flushAsyncOperations();
+
+    const value = cell.querySelector('.overview-day__value') as HTMLElement;
+    expect(value.textContent).toBe('1');
+
+    const fullButton = document.querySelector('[data-view="full"]') as HTMLButtonElement;
+    fullButton.click();
+    await flushAsyncOperations();
+
+    const countPill = Array.from(document.querySelectorAll('.streak-pill')).find(
+      (element) => element.textContent === 'Counts',
+    ) as HTMLButtonElement;
+    countPill.click();
+    await flushAsyncOperations();
+
+    const fullCell = getDayCell('20');
+    const fullValue = fullCell.querySelector('.day-count__value') as HTMLElement;
+    expect(fullValue.textContent).toBe('1');
+  } finally {
+    promptSpy.mockRestore();
+    restoreDate();
+  }
+});
+
+test('view mode persists across reloads', async () => {
+  const restoreDate = mockDate('2024-03-20T12:00:00Z');
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+
+    const overviewButton = document.querySelector('[data-view="overview"]') as HTMLButtonElement;
+    overviewButton.click();
+    await flushAsyncOperations();
+
+    expect(document.querySelectorAll('.overview-row').length).toBe(1);
+
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+
+    expect(document.querySelectorAll('.overview-row').length).toBe(1);
+  } finally {
+    restoreDate();
+  }
 });

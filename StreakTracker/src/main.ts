@@ -6,6 +6,7 @@ const STREAK_LIST_KEY = 'names';
 const STREAK_TYPES_KEY = 'types';
 const STREAK_SETTINGS_KEY = 'settings';
 const LAST_UPDATED_KEY = 'lastUpdated';
+const VIEW_MODE_KEY = 'viewMode';
 const DATE_KEY_PATTERN = /^\d{4}-\d{1,2}-\d{1,2}$/;
 const DAY_KEY_PATTERN = /^([^:]+)::(\d{4}-\d{1,2}-\d{1,2})$/;
 const DEFAULT_STREAK_NAME = 'My Streak';
@@ -20,6 +21,7 @@ export const DAY_STATES = {
 export type DayState = (typeof DAY_STATES)[keyof typeof DAY_STATES];
 type DayValue = number;
 type StreakType = 'color' | 'count';
+type ViewMode = 'full' | 'overview';
 type CountZeroStartMode = 'first' | 'today' | 'custom';
 type ColorLabelKey = 'red' | 'green' | 'blue';
 type ColorLabels = {
@@ -424,6 +426,31 @@ function buildDateKeyFromDate(date: Date): string {
   return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 }
 
+type RollingDate = {
+  dateKey: string;
+  label: string;
+  day: number;
+};
+
+function getRollingWeekDates(now: Date): RollingDate[] {
+  const dates: RollingDate[] = [];
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  for (let offset = 6; offset >= 0; offset -= 1) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - offset);
+    dates.push({
+      dateKey: buildDateKeyFromDate(date),
+      label: date.toLocaleDateString('default', {
+        weekday: 'short',
+        month: 'numeric',
+        day: 'numeric',
+      }),
+      day: date.getDate(),
+    });
+  }
+  return dates;
+}
+
 function formatDateInputValue(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -500,6 +527,29 @@ function setHashStreak(streakName: string): void {
     return;
   }
   window.location.hash = encodeURIComponent(streakName);
+}
+
+function getStoredViewMode(): ViewMode {
+  if (typeof localStorage === 'undefined') {
+    return 'full';
+  }
+  try {
+    const stored = localStorage.getItem(VIEW_MODE_KEY);
+    return stored === 'overview' || stored === 'full' ? stored : 'full';
+  } catch {
+    return 'full';
+  }
+}
+
+function storeViewMode(mode: ViewMode): void {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+  try {
+    localStorage.setItem(VIEW_MODE_KEY, mode);
+  } catch {
+    // Ignore storage failures to keep the UI responsive.
+  }
 }
 
 export function generateCalendar(year: number, month: number): (number | null)[] {
@@ -1175,6 +1225,8 @@ function renderStreakControls(
   onRename: (name: string) => void,
   onSettings: () => void,
   onDelete: () => void,
+  viewMode: ViewMode,
+  onViewModeChange: (mode: ViewMode) => void,
 ): void {
   controlsContainer.innerHTML = '';
   controlsContainer.classList.add('streak-controls');
@@ -1248,6 +1300,40 @@ function renderStreakControls(
   });
   pillsWrapper.appendChild(deleteButton);
   row.appendChild(pillsWrapper);
+
+  const viewToggle = document.createElement('div');
+  viewToggle.className = 'view-toggle';
+  viewToggle.setAttribute('role', 'group');
+  const viewToggleLabel = document.createElement('span');
+  viewToggleLabel.className = 'sr-only';
+  viewToggleLabel.id = 'view-toggle-label';
+  viewToggleLabel.textContent = 'Choose view';
+  viewToggle.setAttribute('aria-labelledby', viewToggleLabel.id);
+  viewToggle.appendChild(viewToggleLabel);
+
+  const buildViewButton = (mode: ViewMode, label: string) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'view-toggle__button';
+    if (viewMode === mode) {
+      button.classList.add('streak-pill--active');
+      button.setAttribute('aria-pressed', 'true');
+    } else {
+      button.setAttribute('aria-pressed', 'false');
+    }
+    button.dataset.view = mode;
+    button.textContent = label;
+    button.addEventListener('click', () => {
+      if (mode !== viewMode) {
+        onViewModeChange(mode);
+      }
+    });
+    return button;
+  };
+
+  viewToggle.appendChild(buildViewButton('overview', 'Overview'));
+  viewToggle.appendChild(buildViewButton('full', 'Full'));
+  row.appendChild(viewToggle);
 
   const addContainer = document.createElement('div');
   addContainer.className = 'streak-add';
@@ -1527,6 +1613,158 @@ function ensureControlsContainer(calendars: HTMLElement): HTMLElement {
   return wrapper;
 }
 
+function renderOverview(
+  container: HTMLElement,
+  streakNames: string[],
+  now: Date,
+  db: IDBDatabase,
+  streakStates: Map<string, Map<string, DayValue>>,
+  streakTypes: Map<string, StreakType>,
+  lastUpdated: Map<string, number>,
+): void {
+  container.innerHTML = '';
+  const wrapper = document.createElement('div');
+  wrapper.className = 'overview';
+  const dates = getRollingWeekDates(now);
+
+  streakNames.forEach((streakName) => {
+    const existingStateMap = streakStates.get(streakName);
+    const stateMap = existingStateMap ?? new Map<string, DayValue>();
+    if (!existingStateMap) {
+      streakStates.set(streakName, stateMap);
+    }
+    const streakType = streakTypes.get(streakName) ?? STREAK_TYPES.Color;
+
+    const row = document.createElement('div');
+    row.className = 'overview-row';
+    row.dataset.streak = streakName;
+
+    const name = document.createElement('div');
+    name.className = 'overview-row__name';
+    name.textContent = streakName;
+    row.appendChild(name);
+
+    const typeLabel = document.createElement('div');
+    typeLabel.className = 'overview-row__type';
+    typeLabel.textContent = streakType === STREAK_TYPES.Count ? 'Count' : 'Color';
+    row.appendChild(typeLabel);
+
+    const days = document.createElement('div');
+    days.className = 'overview-days';
+
+    dates.forEach(({ dateKey, label, day }) => {
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'overview-day';
+      cell.dataset.dateKey = dateKey;
+      cell.title = label;
+
+      const dayLabel = document.createElement('span');
+      dayLabel.className = 'overview-day__label';
+      dayLabel.textContent = String(day);
+      cell.appendChild(dayLabel);
+
+      if (streakType === STREAK_TYPES.Color) {
+        let state = stateMap.get(dateKey) ?? DAY_STATES.None;
+        if (!Number.isFinite(state) || state < DAY_STATES.None || state > DAY_STATES.Blue) {
+          state = DAY_STATES.None;
+        }
+        applyDayStateClass(cell, state as DayState);
+        const updateAriaLabel = () => {
+          const stateLabel =
+            state === DAY_STATES.Red
+              ? 'red'
+              : state === DAY_STATES.Green
+                ? 'green'
+                : state === DAY_STATES.Blue
+                  ? 'blue'
+                  : 'empty';
+          cell.setAttribute('aria-label', `${streakName}, ${label}, ${stateLabel}`);
+        };
+        updateAriaLabel();
+        cell.addEventListener('click', async () => {
+          state = cycleColorState(state as DayState);
+          applyDayStateClass(cell, state as DayState);
+          if (state === DAY_STATES.None) {
+            stateMap.delete(dateKey);
+            try {
+              await removeDayState(db, streakName, dateKey);
+            } catch (error) {
+              console.error('Failed to remove day state', error);
+            }
+          } else {
+            stateMap.set(dateKey, state);
+            try {
+              await setDayState(db, streakName, dateKey, state);
+            } catch (error) {
+              console.error('Failed to save day state', error);
+            }
+          }
+          try {
+            await recordStreakActivity(db, lastUpdated, streakName);
+          } catch (error) {
+            console.error('Failed to update streak activity', error);
+          }
+          updateAriaLabel();
+        });
+      } else {
+        cell.classList.add('overview-day--count');
+        let count = stateMap.get(dateKey) ?? 0;
+        if (!Number.isFinite(count) || count < 0) {
+          count = 0;
+        }
+        count = Math.floor(count);
+
+        const value = document.createElement('span');
+        value.className = 'overview-day__value';
+        cell.appendChild(value);
+
+        const updateCountDisplay = () => {
+          value.textContent = count > 0 ? String(count) : '';
+          cell.setAttribute('aria-label', `${streakName}, ${label}, count ${count}`);
+        };
+        updateCountDisplay();
+
+        const applyCountChange = async (delta: number) => {
+          count = updateCountValue(count, delta);
+          updateCountDisplay();
+          if (count === 0) {
+            stateMap.delete(dateKey);
+            try {
+              await removeDayState(db, streakName, dateKey);
+            } catch (error) {
+              console.error('Failed to remove count state', error);
+            }
+          } else {
+            stateMap.set(dateKey, count);
+            try {
+              await setDayState(db, streakName, dateKey, count);
+            } catch (error) {
+              console.error('Failed to save count state', error);
+            }
+          }
+          try {
+            await recordStreakActivity(db, lastUpdated, streakName);
+          } catch (error) {
+            console.error('Failed to update streak activity', error);
+          }
+        };
+
+        cell.addEventListener('click', () => {
+          void applyCountChange(1);
+        });
+      }
+
+      days.appendChild(cell);
+    });
+
+    row.appendChild(days);
+    wrapper.appendChild(row);
+  });
+
+  container.appendChild(wrapper);
+}
+
 function renderCalendars(
   container: HTMLElement,
   streakName: string,
@@ -1802,17 +2040,23 @@ export async function setup(): Promise<void> {
     setHashStreak(selectedStreak);
   };
 
+  let viewMode: ViewMode = getStoredViewMode();
+
   const rerenderAll = () => {
-    renderCalendars(
-      container,
-      selectedStreak,
-      now,
-      db,
-      streakStates,
-      streakTypes,
-      streakSettings,
-      lastUpdated,
-    );
+    if (viewMode === 'overview') {
+      renderOverview(container, streakNames, now, db, streakStates, streakTypes, lastUpdated);
+    } else {
+      renderCalendars(
+        container,
+        selectedStreak,
+        now,
+        db,
+        streakStates,
+        streakTypes,
+        streakSettings,
+        lastUpdated,
+      );
+    }
     renderControls();
   };
 
@@ -1962,20 +2206,16 @@ export async function setup(): Promise<void> {
           console.error('Failed to delete streak', error);
         }
       },
+      viewMode,
+      (mode) => {
+        viewMode = mode;
+        storeViewMode(mode);
+        rerenderAll();
+      },
     );
   };
 
-  renderControls();
-  renderCalendars(
-    container,
-    selectedStreak,
-    now,
-    db,
-    streakStates,
-    streakTypes,
-    streakSettings,
-    lastUpdated,
-  );
+  rerenderAll();
 }
 
 function registerServiceWorker() {

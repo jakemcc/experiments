@@ -50,6 +50,27 @@
       flex-wrap: wrap;
       gap: 0.35rem;
     }
+    .view-toggle {
+      display: inline-flex;
+      gap: 0.35rem;
+      align-items: center;
+      flex: 0 0 auto;
+    }
+    .view-toggle__button {
+      padding: 0.35rem 0.6rem;
+      border-radius: 6px;
+      border: 1px solid #cfd8dc;
+      background: #f5f8fa;
+      color: #1a2a3a;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+    }
+    .view-toggle__button:hover {
+      background: #e8f1ff;
+      border-color: #90caf9;
+    }
     .streak-pill {
       padding: 0.35rem 0.6rem;
       border-radius: 6px;
@@ -201,6 +222,101 @@
       grid-template-columns: repeat(7, 1fr);
       gap: 2px;
       margin-bottom: 1rem;
+    }
+    .overview {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      margin-top: 0.5rem;
+    }
+    .overview-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+    .overview-row__name {
+      font-weight: 600;
+      min-width: 140px;
+      color: #1a2a3a;
+    }
+    .overview-row__type {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.2rem 0.35rem;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #334155;
+    }
+    .overview-days {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(36px, 1fr));
+      gap: 4px;
+    }
+    .overview-day {
+      position: relative;
+      border: 1px solid #cfd8dc;
+      border-radius: 6px;
+      background: #f8fafc;
+      height: 36px;
+      padding: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #1a2a3a;
+      font-size: 0.85rem;
+    }
+    .overview-day:focus-visible {
+      outline: 2px solid #1976d2;
+      outline-offset: 2px;
+    }
+    .overview-day__label {
+      position: absolute;
+      top: 3px;
+      left: 5px;
+      font-size: 0.6rem;
+      color: #64748b;
+      font-weight: 600;
+    }
+    .overview-day__value {
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+    .overview-day.red {
+      color: #fff;
+      background-image:
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.5) 0, rgba(255, 255, 255, 0.5) 8px, transparent 8px, transparent 16px),
+        linear-gradient(135deg, #ff4d4f, #c62828);
+      background-size: 24px 24px;
+    }
+    .overview-day.green {
+      color: #fff;
+      background-image:
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.45) 0, rgba(255, 255, 255, 0.45) 6px, transparent 6px, transparent 14px),
+        linear-gradient(180deg, #43a047, #2e7d32);
+      background-size: 20px 20px;
+    }
+    .overview-day.blue {
+      color: #0b2a3d;
+      background-image:
+        radial-gradient(circle at 10px 10px, rgba(255, 255, 255, 0.55) 2px, transparent 3px),
+        linear-gradient(135deg, #87cefa, #4fc3f7);
+      background-size: 18px 18px;
+    }
+    .overview-day.red .overview-day__label,
+    .overview-day.green .overview-day__label {
+      color: rgba(255, 255, 255, 0.9);
+    }
+    @media (max-width: 720px) {
+      .overview-row__name {
+        min-width: 100%;
+      }
+      .overview-days {
+        width: 100%;
+        grid-template-columns: repeat(7, minmax(34px, 1fr));
+      }
     }
     .day {
       border: 1px solid #ccc;
