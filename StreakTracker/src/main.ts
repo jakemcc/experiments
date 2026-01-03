@@ -61,6 +61,42 @@ export function updateCountValue(current: number, delta: number): number {
   return Math.max(0, next);
 }
 
+type PersistDayValueOptions = {
+  stateMap: Map<string, DayValue>;
+  dateKey: string;
+  value: DayValue;
+  persist: (value: DayValue) => Promise<void>;
+  remove: () => Promise<void>;
+  recordActivity: () => Promise<void>;
+  onPersistError: (error: unknown) => void;
+  onRemoveError: (error: unknown) => void;
+  onRecordError: (error: unknown) => void;
+};
+
+export async function persistDayValue(options: PersistDayValueOptions): Promise<void> {
+  if (options.value > 0) {
+    options.stateMap.set(options.dateKey, options.value);
+    try {
+      await options.persist(options.value);
+    } catch (error) {
+      options.onPersistError(error);
+    }
+  } else {
+    options.stateMap.delete(options.dateKey);
+    try {
+      await options.remove();
+    } catch (error) {
+      options.onRemoveError(error);
+    }
+  }
+
+  try {
+    await options.recordActivity();
+  } catch (error) {
+    options.onRecordError(error);
+  }
+}
+
 export function migrateStreakTypes(
   storedTypes: Map<string, StreakType>,
   streakNames: Iterable<string>,
@@ -1685,30 +1721,20 @@ function renderOverview(
         cell.addEventListener('click', async () => {
           state = cycleColorState(state as DayState);
           applyDayStateClass(cell, state as DayState);
-          if (state === DAY_STATES.None) {
-            stateMap.delete(dateKey);
-            try {
-              await removeDayState(db, streakName, dateKey);
-            } catch (error) {
-              console.error('Failed to remove day state', error);
-            }
-          } else {
-            stateMap.set(dateKey, state);
-            try {
-              await setDayState(db, streakName, dateKey, state);
-            } catch (error) {
-              console.error('Failed to save day state', error);
-            }
-          }
-          try {
-            await recordStreakActivity(db, lastUpdated, streakName);
-          } catch (error) {
-            console.error('Failed to update streak activity', error);
-          }
+          await persistDayValue({
+            stateMap,
+            dateKey,
+            value: state,
+            persist: (nextValue) => setDayState(db, streakName, dateKey, nextValue),
+            remove: () => removeDayState(db, streakName, dateKey),
+            recordActivity: () => recordStreakActivity(db, lastUpdated, streakName),
+            onPersistError: (error) => console.error('Failed to save day state', error),
+            onRemoveError: (error) => console.error('Failed to remove day state', error),
+            onRecordError: (error) => console.error('Failed to update streak activity', error),
+          });
           updateAriaLabel();
         });
       } else {
-        cell.classList.add('overview-day--count');
         let count = stateMap.get(dateKey) ?? 0;
         if (!Number.isFinite(count) || count < 0) {
           count = 0;
@@ -1728,26 +1754,17 @@ function renderOverview(
         const applyCountChange = async (delta: number) => {
           count = updateCountValue(count, delta);
           updateCountDisplay();
-          if (count === 0) {
-            stateMap.delete(dateKey);
-            try {
-              await removeDayState(db, streakName, dateKey);
-            } catch (error) {
-              console.error('Failed to remove count state', error);
-            }
-          } else {
-            stateMap.set(dateKey, count);
-            try {
-              await setDayState(db, streakName, dateKey, count);
-            } catch (error) {
-              console.error('Failed to save count state', error);
-            }
-          }
-          try {
-            await recordStreakActivity(db, lastUpdated, streakName);
-          } catch (error) {
-            console.error('Failed to update streak activity', error);
-          }
+          await persistDayValue({
+            stateMap,
+            dateKey,
+            value: count,
+            persist: (nextValue) => setDayState(db, streakName, dateKey, nextValue),
+            remove: () => removeDayState(db, streakName, dateKey),
+            recordActivity: () => recordStreakActivity(db, lastUpdated, streakName),
+            onPersistError: (error) => console.error('Failed to save count state', error),
+            onRemoveError: (error) => console.error('Failed to remove count state', error),
+            onRecordError: (error) => console.error('Failed to update streak activity', error),
+          });
         };
 
         cell.addEventListener('click', () => {
@@ -1863,26 +1880,20 @@ function renderCalendars(
             applyDayStateClass(cell, state);
             if (state === DAY_STATES.None) {
               monthState.delete(value);
-              stateMap.delete(dateKey);
-              try {
-                await removeDayState(db, streakName, dateKey);
-              } catch (error) {
-                console.error('Failed to remove day state', error);
-              }
             } else {
               monthState.set(value, state);
-              stateMap.set(dateKey, state);
-              try {
-                await setDayState(db, streakName, dateKey, state);
-              } catch (error) {
-                console.error('Failed to save day state', error);
-              }
             }
-            try {
-              await recordStreakActivity(db, lastUpdated, streakName);
-            } catch (error) {
-              console.error('Failed to update streak activity', error);
-            }
+            await persistDayValue({
+              stateMap,
+              dateKey,
+              value: state,
+              persist: (nextValue) => setDayState(db, streakName, dateKey, nextValue),
+              remove: () => removeDayState(db, streakName, dateKey),
+              recordActivity: () => recordStreakActivity(db, lastUpdated, streakName),
+              onPersistError: (error) => console.error('Failed to save day state', error),
+              onRemoveError: (error) => console.error('Failed to remove day state', error),
+              onRecordError: (error) => console.error('Failed to update streak activity', error),
+            });
             updateStats();
           });
         } else {
@@ -1913,26 +1924,20 @@ function renderCalendars(
             updateCountDisplay();
             if (count === 0) {
               monthCounts.delete(value);
-              stateMap.delete(dateKey);
-              try {
-                await removeDayState(db, streakName, dateKey);
-              } catch (error) {
-                console.error('Failed to remove count state', error);
-              }
             } else {
               monthCounts.set(value, count);
-              stateMap.set(dateKey, count);
-              try {
-                await setDayState(db, streakName, dateKey, count);
-              } catch (error) {
-                console.error('Failed to save count state', error);
-              }
             }
-            try {
-              await recordStreakActivity(db, lastUpdated, streakName);
-            } catch (error) {
-              console.error('Failed to update streak activity', error);
-            }
+            await persistDayValue({
+              stateMap,
+              dateKey,
+              value: count,
+              persist: (nextValue) => setDayState(db, streakName, dateKey, nextValue),
+              remove: () => removeDayState(db, streakName, dateKey),
+              recordActivity: () => recordStreakActivity(db, lastUpdated, streakName),
+              onPersistError: (error) => console.error('Failed to save count state', error),
+              onRemoveError: (error) => console.error('Failed to remove count state', error),
+              onRecordError: (error) => console.error('Failed to update streak activity', error),
+            });
             updateStats();
           };
 

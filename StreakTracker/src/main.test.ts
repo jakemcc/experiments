@@ -8,7 +8,10 @@ import {
   setup,
   clearAllStoredDaysForTests,
   updateCountValue,
+  persistDayValue,
 } from './main';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
 async function flushAsyncOperations() {
   await Promise.resolve();
@@ -142,6 +145,13 @@ test('generateCalendar has 42 cells and correct day count', () => {
   const cells = generateCalendar(2023, 0); // January 2023
   expect(cells.length).toBe(42);
   expect(cells.filter((d) => d !== null).length).toBe(31);
+});
+
+test('streak controls CSS omits unused selectors', () => {
+  const html = readFileSync(resolve(__dirname, '../index.html'), 'utf8');
+  expect(html).not.toContain('#streak-controls h2');
+  expect(html).not.toContain('.streak-select');
+  expect(html).not.toContain('#streak-controls select');
 });
 
 test('cycleColorState advances through the color cycle', () => {
@@ -1134,6 +1144,53 @@ test('color streak settings hide count-only options', async () => {
   expect(countOptions.length).toBe(0);
 });
 
+test('persistDayValue stores or removes day values and records activity', async () => {
+  const stateMap = new Map<string, number>();
+  const persist = jest.fn().mockResolvedValue(undefined);
+  const remove = jest.fn().mockResolvedValue(undefined);
+  const recordActivity = jest.fn().mockResolvedValue(undefined);
+  const onPersistError = jest.fn();
+  const onRemoveError = jest.fn();
+  const onRecordError = jest.fn();
+
+  await persistDayValue({
+    stateMap,
+    dateKey: '2024-3-20',
+    value: 2,
+    persist,
+    remove,
+    recordActivity,
+    onPersistError,
+    onRemoveError,
+    onRecordError,
+  });
+
+  expect(stateMap.get('2024-3-20')).toBe(2);
+  expect(persist).toHaveBeenCalledWith(2);
+  expect(remove).not.toHaveBeenCalled();
+  expect(recordActivity).toHaveBeenCalledTimes(1);
+
+  await persistDayValue({
+    stateMap,
+    dateKey: '2024-3-20',
+    value: 0,
+    persist,
+    remove,
+    recordActivity,
+    onPersistError,
+    onRemoveError,
+    onRecordError,
+  });
+
+  expect(stateMap.has('2024-3-20')).toBe(false);
+  expect(remove).toHaveBeenCalledTimes(1);
+  expect(persist).toHaveBeenCalledTimes(1);
+  expect(recordActivity).toHaveBeenCalledTimes(2);
+  expect(onPersistError).not.toHaveBeenCalled();
+  expect(onRemoveError).not.toHaveBeenCalled();
+  expect(onRecordError).not.toHaveBeenCalled();
+});
+
 test('overview mode shows 7-day strips and updates color streak', async () => {
   const restoreDate = mockDate('2024-03-20T12:00:00Z');
   try {
@@ -1205,6 +1262,33 @@ test('overview mode increments count streak and persists', async () => {
     const fullCell = getDayCell('20');
     const fullValue = fullCell.querySelector('.day-count__value') as HTMLElement;
     expect(fullValue.textContent).toBe('1');
+  } finally {
+    promptSpy.mockRestore();
+    restoreDate();
+  }
+});
+
+test('overview count cells omit unused count class', async () => {
+  const restoreDate = mockDate('2024-03-20T12:00:00Z');
+  const promptSpy = jest
+    .spyOn(window, 'prompt')
+    .mockImplementationOnce(() => 'Counts')
+    .mockImplementationOnce(() => 'Count');
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+
+    const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
+    addButton.click();
+    await flushAsyncOperations();
+
+    const overviewButton = document.querySelector('[data-view="overview"]') as HTMLButtonElement;
+    overviewButton.click();
+    await flushAsyncOperations();
+
+    const todayKey = '2024-3-20';
+    const cell = getOverviewCell('Counts', todayKey);
+    expect(cell.classList.contains('overview-day--count')).toBe(false);
   } finally {
     promptSpy.mockRestore();
     restoreDate();
