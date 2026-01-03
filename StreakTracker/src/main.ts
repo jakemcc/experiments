@@ -39,6 +39,15 @@ type StreakSettings = {
   countZeroStartDate?: string;
   colorLabels?: ColorLabels;
 };
+type ExportPayload = {
+  version: 1;
+  viewMode: ViewMode;
+  names: string[];
+  types: [string, StreakType][];
+  settings: [string, StreakSettings][];
+  lastUpdated: [string, number][];
+  dayStates: [string, DayValue][];
+};
 
 export const STREAK_TYPES = {
   Color: 'color',
@@ -588,6 +597,10 @@ function storeViewMode(mode: ViewMode): void {
   }
 }
 
+function parseViewMode(value: unknown): ViewMode | null {
+  return value === 'overview' || value === 'full' ? value : null;
+}
+
 export function generateCalendar(year: number, month: number): (number | null)[] {
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -748,6 +761,68 @@ function parseStoredStreakSettings(raw: unknown): Map<string, StreakSettings> {
   return settings;
 }
 
+function parseLastUpdatedEntries(raw: unknown): Map<string, number> {
+  if (!Array.isArray(raw)) {
+    return new Map();
+  }
+  const entries = raw.filter(
+    (entry): entry is [string, number] =>
+      Array.isArray(entry) &&
+      entry.length === 2 &&
+      typeof entry[0] === 'string' &&
+      typeof entry[1] === 'number',
+  );
+  const lastUpdated = new Map<string, number>();
+  entries.forEach(([name, timestamp]) => {
+    lastUpdated.set(normalizeStreakName(name), timestamp);
+  });
+  return lastUpdated;
+}
+
+function buildNormalizedNameList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const names = new Set<string>();
+  raw.forEach((entry) => {
+    if (typeof entry === 'string') {
+      names.add(normalizeStreakName(entry));
+    }
+  });
+  return Array.from(names);
+}
+
+function normalizeDayStateEntries(
+  raw: unknown,
+): { entries: [string, DayValue][]; streakNames: Set<string> } {
+  const entries: [string, DayValue][] = [];
+  const streakNames = new Set<string>();
+  if (!Array.isArray(raw)) {
+    return { entries, streakNames };
+  }
+  raw.forEach((entry) => {
+    if (!Array.isArray(entry) || entry.length !== 2) {
+      return;
+    }
+    const [key, value] = entry;
+    if (typeof key !== 'string' || typeof value !== 'number' || !Number.isFinite(value)) {
+      return;
+    }
+    if (value <= 0) {
+      return;
+    }
+    const parsed = parseDayKey(key);
+    if (!parsed) {
+      return;
+    }
+    const normalizedName = normalizeStreakName(parsed.streak);
+    const normalizedKey = buildDayKey(normalizedName, parsed.dateKey);
+    entries.push([normalizedKey, Math.floor(value)]);
+    streakNames.add(normalizedName);
+  });
+  return { entries, streakNames };
+}
+
 async function getStoredStreakTypes(db: IDBDatabase): Promise<Map<string, StreakType>> {
   const tx = db.transaction(STREAK_STORE, 'readonly');
   const store = tx.objectStore(STREAK_STORE);
@@ -788,6 +863,159 @@ async function saveStreakNames(db: IDBDatabase, names: string[]): Promise<void> 
   const store = tx.objectStore(STREAK_STORE);
   store.put(names, STREAK_LIST_KEY);
   await transactionDone(tx, 'Failed to save streak names');
+}
+
+async function clearStore(db: IDBDatabase, storeName: string, errorMessage: string): Promise<void> {
+  const tx = db.transaction(storeName, 'readwrite');
+  const store = tx.objectStore(storeName);
+  store.clear();
+  await transactionDone(tx, errorMessage);
+}
+
+async function getAllDayStateEntries(db: IDBDatabase): Promise<[string, DayValue][]> {
+  const entries: [string, DayValue][] = [];
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.openCursor();
+    request.onerror = () => {
+      reject(request.error ?? new Error('Failed to read state'));
+    };
+    request.onsuccess = (event) => {
+      const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+      if (cursor) {
+        if (typeof cursor.key === 'string' && typeof cursor.value === 'number') {
+          if (Number.isFinite(cursor.value) && cursor.value > 0) {
+            entries.push([cursor.key, cursor.value]);
+          }
+        }
+        cursor.continue();
+      }
+    };
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => {
+      reject(tx.error ?? new Error('Failed to read state'));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error('Failed to read state'));
+    };
+  });
+  return entries;
+}
+
+function buildExportFileName(date: Date): string {
+  return `streak-tracker-export-${formatDateInputValue(date)}.json`;
+}
+
+async function buildExportPayload(db: IDBDatabase): Promise<ExportPayload> {
+  const dayStates = await getAllDayStateEntries(db);
+  const streakNamesFromStates = new Set<string>();
+  dayStates.forEach(([key]) => {
+    const parsed = parseDayKey(key);
+    if (parsed) {
+      streakNamesFromStates.add(parsed.streak);
+    }
+  });
+  const storedNames = await getStoredStreakNames(db);
+  const namesSet = buildNamesSet(storedNames, streakNamesFromStates);
+  const names = Array.from(namesSet);
+
+  const storedTypes = await getStoredStreakTypes(db);
+  const migrated = migrateStreakTypes(storedTypes, names);
+  const settings = await getStoredStreakSettings(db);
+  const lastUpdated = await getLastUpdatedMap(db);
+
+  return {
+    version: 1,
+    viewMode: getStoredViewMode(),
+    names,
+    types: Array.from(migrated.types.entries()),
+    settings: Array.from(settings.entries()),
+    lastUpdated: Array.from(lastUpdated.entries()),
+    dayStates,
+  };
+}
+
+function downloadExportPayload(payload: ExportPayload): void {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = buildExportFileName(new Date());
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function parseImportPayload(raw: unknown): ExportPayload | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const record = raw as Record<string, unknown>;
+  if (record.version !== 1) {
+    return null;
+  }
+
+  const baseNames = buildNormalizedNameList(record.names);
+  const dayStateResult = normalizeDayStateEntries(record.dayStates);
+  const namesSet = buildNamesSet(baseNames, dayStateResult.streakNames);
+  const names = Array.from(namesSet);
+
+  const importedTypes = parseStoredStreakTypes(record.types);
+  const normalizedTypes = new Map<string, StreakType>();
+  importedTypes.forEach((type, name) => {
+    normalizedTypes.set(normalizeStreakName(name), type);
+  });
+  const migratedTypes = migrateStreakTypes(normalizedTypes, names);
+
+  const settings = parseStoredStreakSettings(record.settings);
+  const lastUpdated = parseLastUpdatedEntries(record.lastUpdated);
+  const viewMode = parseViewMode(record.viewMode) ?? 'full';
+
+  return {
+    version: 1,
+    viewMode,
+    names,
+    types: Array.from(migratedTypes.types.entries()),
+    settings: Array.from(settings.entries()),
+    lastUpdated: Array.from(lastUpdated.entries()),
+    dayStates: dayStateResult.entries,
+  };
+}
+
+async function readFileText(file: File): Promise<string> {
+  if (typeof file.text === 'function') {
+    return file.text();
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+    reader.readAsText(file);
+  });
+}
+
+async function replaceAllStoredData(db: IDBDatabase, payload: ExportPayload): Promise<void> {
+  await clearStore(db, STORE_NAME, 'Failed to clear store');
+  await clearStore(db, STREAK_STORE, 'Failed to clear streak store');
+
+  if (payload.dayStates.length > 0) {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    payload.dayStates.forEach(([key, value]) => {
+      store.put(value, key);
+    });
+    await transactionDone(tx, 'Failed to import day states');
+  }
+
+  const streakTx = db.transaction(STREAK_STORE, 'readwrite');
+  const streakStore = streakTx.objectStore(STREAK_STORE);
+  streakStore.put(payload.names, STREAK_LIST_KEY);
+  streakStore.put(payload.types, STREAK_TYPES_KEY);
+  streakStore.put(payload.settings, STREAK_SETTINGS_KEY);
+  streakStore.put(payload.lastUpdated, LAST_UPDATED_KEY);
+  await transactionDone(streakTx, 'Failed to import streak data');
 }
 
 function trimStreakName(name: string): string | null {
@@ -1415,6 +1643,7 @@ function openStreakSettingsModal(options: {
   streakType: StreakType;
   settings: StreakSettings | undefined;
   onSave: (nextSettings: StreakSettings) => void;
+  db: IDBDatabase;
 }): void {
   const existing = document.getElementById('streak-settings-modal');
   if (existing) {
@@ -1620,6 +1849,88 @@ function openStreakSettingsModal(options: {
     closeButton.addEventListener('click', closeModal);
     actions.appendChild(closeButton);
   }
+
+  const dataFieldset = document.createElement('fieldset');
+  dataFieldset.className = 'streak-settings__fieldset data-tools';
+  const dataLegend = document.createElement('legend');
+  dataLegend.textContent = 'Import / Export';
+  dataFieldset.appendChild(dataLegend);
+
+  const exportButton = document.createElement('button');
+  exportButton.type = 'button';
+  exportButton.className = 'data-export';
+  exportButton.textContent = 'Export data';
+  exportButton.addEventListener('click', () => {
+    void (async () => {
+      try {
+        const payload = await buildExportPayload(options.db);
+        downloadExportPayload(payload);
+      } catch (error) {
+        console.error('Failed to export data', error);
+        alert('Failed to export data.');
+      }
+    })();
+  });
+  dataFieldset.appendChild(exportButton);
+
+  const exportNote = document.createElement('p');
+  exportNote.className = 'data-export__note';
+  exportNote.textContent = 'Export downloads all streaks and settings.';
+  dataFieldset.appendChild(exportNote);
+
+  const importWarning = document.createElement('p');
+  importWarning.className = 'data-import__warning';
+  importWarning.textContent = 'Import replaces all existing streak data and settings.';
+  dataFieldset.appendChild(importWarning);
+
+  const importLabel = document.createElement('label');
+  importLabel.className = 'data-import__label';
+  importLabel.textContent = 'Import from file';
+  const importInput = document.createElement('input');
+  importInput.type = 'file';
+  importInput.accept = 'application/json';
+  importInput.className = 'data-import__input';
+  importLabel.appendChild(importInput);
+  dataFieldset.appendChild(importLabel);
+
+  importInput.addEventListener('change', () => {
+    const file = importInput.files?.[0];
+    if (!file) {
+      return;
+    }
+    importInput.value = '';
+    void (async () => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(await readFileText(file));
+      } catch (error) {
+        console.error('Failed to parse import file', error);
+        alert('Import file must be valid JSON.');
+        return;
+      }
+      const payload = parseImportPayload(parsed);
+      if (!payload) {
+        alert('Import file is invalid.');
+        return;
+      }
+      try {
+        await replaceAllStoredData(options.db, payload);
+        storeViewMode(payload.viewMode);
+        if (payload.names.length > 0) {
+          setHashStreak(payload.names[0]);
+        } else if (typeof window !== 'undefined' && window.location) {
+          window.location.hash = '';
+        }
+        closeModal();
+        await setup();
+      } catch (error) {
+        console.error('Failed to import data', error);
+        alert('Failed to import data.');
+      }
+    })();
+  });
+
+  body.appendChild(dataFieldset);
 
   dialog.appendChild(actions);
   overlay.appendChild(dialog);
@@ -2138,6 +2449,7 @@ export async function setup(): Promise<void> {
           streakName: selectedStreak,
           streakType,
           settings: streakSettings.get(selectedStreak),
+          db,
           onSave: (nextSettings) => {
             void (async () => {
               const shouldStore =

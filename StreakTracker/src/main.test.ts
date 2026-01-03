@@ -68,6 +68,65 @@ function mockDate(dateString: string): () => void {
   };
 }
 
+function mockDownloadCapture() {
+  const createObjectURL = jest.fn((_: Blob | MediaSource) => 'blob:mock');
+  const revokeObjectURL = jest.fn((_: string) => {});
+
+  if (typeof URL.createObjectURL !== 'function') {
+    Object.defineProperty(URL, 'createObjectURL', {
+      value: () => 'blob:mock',
+      writable: true,
+    });
+  }
+  if (typeof URL.revokeObjectURL !== 'function') {
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      value: () => {},
+      writable: true,
+    });
+  }
+
+  const createObjectURLSpy = jest
+    .spyOn(URL, 'createObjectURL')
+    .mockImplementation(createObjectURL);
+  const revokeObjectURLSpy = jest
+    .spyOn(URL, 'revokeObjectURL')
+    .mockImplementation(revokeObjectURL);
+  const realCreateElement = document.createElement.bind(document);
+  const createElementSpy = jest.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+    const element = realCreateElement(tagName);
+    if (tagName === 'a') {
+      jest.spyOn(element, 'click').mockImplementation(() => {});
+    }
+    return element;
+  });
+  const anchorClickSpy = jest
+    .spyOn(HTMLAnchorElement.prototype, 'click')
+    .mockImplementation(() => {});
+
+  return {
+    createObjectURL,
+    revokeObjectURL,
+    restore: () => {
+      createElementSpy.mockRestore();
+      anchorClickSpy.mockRestore();
+      createObjectURLSpy.mockRestore();
+      revokeObjectURLSpy.mockRestore();
+    },
+  };
+}
+
+async function readBlobText(blob: Blob): Promise<string> {
+  if (typeof blob.text === 'function') {
+    return blob.text();
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read blob'));
+    reader.readAsText(blob);
+  });
+}
+
 function getDayCell(day: string): HTMLElement {
   const cell = Array.from(document.querySelectorAll('.day')).find(
     (c) => (c as HTMLElement).dataset.day === day || c.textContent === day,
@@ -366,12 +425,64 @@ test('color settings rename labels and show swatches in stats', async () => {
   expect(document.querySelectorAll('.stats-swatch--blue').length).toBe(1);
 });
 
+test('export downloads streak data as JSON', async () => {
+  const restoreDate = mockDate('2024-04-10T12:00:00Z');
+  const download = mockDownloadCapture();
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+
+    const dayOne = getDayCell('1');
+    dayOne.click();
+    await flushAsyncOperations();
+
+  const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+  settingsButton.click();
+  await flushAsyncOperations();
+
+  await waitForCondition(() => Boolean(document.querySelector('.data-export')));
+    const exportButton = document.querySelector('.data-export') as HTMLButtonElement;
+    exportButton.click();
+    await flushAsyncOperations();
+    await waitForCondition(() => download.createObjectURL.mock.calls.length > 0, 60);
+
+    expect(download.createObjectURL).toHaveBeenCalledTimes(1);
+    const blob = download.createObjectURL.mock.calls[0][0] as Blob;
+    const text = await readBlobText(blob);
+    const data = JSON.parse(text);
+    expect(data.version).toBe(1);
+    expect(data.names).toContain('My Streak');
+    expect(data.types).toEqual(
+      expect.arrayContaining([['My Streak', STREAK_TYPES.Color]]),
+    );
+    expect(data.dayStates).toEqual(
+      expect.arrayContaining([[`${encodeURIComponent('My Streak')}::2024-4-1`, 1]]),
+    );
+  } finally {
+    download.restore();
+    restoreDate();
+  }
+});
+
 test('settings button uses a gear icon', async () => {
   document.body.innerHTML = '<div id="calendars"></div>';
   await setup();
 
   const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
   expect(settingsButton.textContent).toBe('\u2699');
+});
+
+test('import warning text is visible in settings', async () => {
+  document.body.innerHTML = '<div id="calendars"></div>';
+  await setup();
+
+  const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+  settingsButton.click();
+  await flushAsyncOperations();
+
+  await waitForCondition(() => Boolean(document.querySelector('.data-import__warning')));
+  const warning = document.querySelector('.data-import__warning') as HTMLElement;
+  expect(warning.textContent).toContain('replaces all existing streak data and settings');
 });
 
 test('when default streak is missing it selects the most recently updated streak', async () => {
@@ -1022,6 +1133,7 @@ test('count streak stats start from custom date', async () => {
 
     await waitForCondition(
       () => stats.textContent === expectedStats && overallStats.textContent === expectedOverall,
+      60,
     );
     expect(stats.textContent).toBe(expectedStats);
     expect(overallStats.textContent).toBe(expectedOverall);
@@ -1237,6 +1349,12 @@ test('overview mode increments count streak and persists', async () => {
     addButton.click();
     await flushAsyncOperations();
 
+    await waitForCondition(() =>
+      Array.from(document.querySelectorAll('.streak-pill')).some(
+        (element) => element.textContent === 'Counts',
+      ),
+    );
+
     const overviewButton = document.querySelector('[data-view="overview"]') as HTMLButtonElement;
     overviewButton.click();
     await flushAsyncOperations();
@@ -1291,6 +1409,54 @@ test('overview count cells omit unused count class', async () => {
     expect(cell.classList.contains('overview-day--count')).toBe(false);
   } finally {
     promptSpy.mockRestore();
+    restoreDate();
+  }
+});
+
+test('import replaces existing streak data', async () => {
+  const restoreDate = mockDate('2024-04-10T12:00:00Z');
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+
+    const dayOne = getDayCell('1');
+    dayOne.click();
+    await flushAsyncOperations();
+
+  const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+  settingsButton.click();
+  await flushAsyncOperations();
+
+  await waitForCondition(() => Boolean(document.querySelector('.data-import__input')));
+  const payload = {
+    version: 1,
+    viewMode: 'full',
+    names: ['Imported'],
+      types: [['Imported', STREAK_TYPES.Color]],
+      settings: [],
+      lastUpdated: [['Imported', 123]],
+    dayStates: [[`${encodeURIComponent('Imported')}::2024-4-2`, 2]],
+  };
+  const file = new File([JSON.stringify(payload)], 'streak-tracker.json', {
+    type: 'application/json',
+  });
+  const importInput = document.querySelector('.data-import__input') as HTMLInputElement;
+  Object.defineProperty(importInput, 'files', { value: [file] });
+  importInput.dispatchEvent(new Event('change'));
+  await flushAsyncOperations();
+
+    await waitForCondition(() => {
+      const pills = Array.from(document.querySelectorAll('.streak-pill')).map(
+        (pill) => (pill as HTMLButtonElement).textContent,
+      );
+      return pills.includes('Imported') && !pills.includes('My Streak');
+    });
+
+    const dayTwo = getDayCell('2');
+    expect(dayTwo.classList.contains('green')).toBe(true);
+    const dayOneAfter = getDayCell('1');
+    expect(dayOneAfter.classList.contains('red')).toBe(false);
+  } finally {
     restoreDate();
   }
 });
