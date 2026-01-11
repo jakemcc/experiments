@@ -1967,6 +1967,7 @@ function renderOverview(
   db: IDBDatabase,
   streakStates: Map<string, Map<string, DayValue>>,
   streakTypes: Map<string, StreakType>,
+  streakSettings: Map<string, StreakSettings>,
   lastUpdated: Map<string, number>,
 ): void {
   container.innerHTML = '';
@@ -1991,10 +1992,27 @@ function renderOverview(
     name.textContent = streakName;
     row.appendChild(name);
 
-    const typeLabel = document.createElement('div');
-    typeLabel.className = 'overview-row__type';
-    typeLabel.textContent = streakType === STREAK_TYPES.Count ? 'Count' : 'Color';
-    row.appendChild(typeLabel);
+    if (streakType === STREAK_TYPES.Color) {
+      const legend = document.createElement('div');
+      legend.className = 'overview-row__legend';
+      const labels = getColorLabels(streakSettings.get(streakName));
+      ([
+        ['red', labels.red],
+        ['green', labels.green],
+        ['blue', labels.blue],
+      ] as const).forEach(([key, label]) => {
+        const item = document.createElement('span');
+        item.className = 'overview-legend__item';
+        const swatch = document.createElement('span');
+        swatch.className = `overview-legend__swatch overview-legend__swatch--${key}`;
+        item.appendChild(swatch);
+        const text = document.createElement('span');
+        text.textContent = label;
+        item.appendChild(text);
+        legend.appendChild(item);
+      });
+      row.appendChild(legend);
+    }
 
     const days = document.createElement('div');
     days.className = 'overview-days';
@@ -2360,7 +2378,16 @@ export async function setup(): Promise<void> {
 
   const rerenderAll = () => {
     if (viewMode === 'overview') {
-      renderOverview(container, streakNames, now, db, streakStates, streakTypes, lastUpdated);
+      renderOverview(
+        container,
+        streakNames,
+        now,
+        db,
+        streakStates,
+        streakTypes,
+        streakSettings,
+        lastUpdated,
+      );
     } else {
       renderCalendars(
         container,

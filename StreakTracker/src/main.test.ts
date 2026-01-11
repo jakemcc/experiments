@@ -1335,6 +1335,51 @@ test('overview mode shows 7-day strips and updates color streak', async () => {
   }
 });
 
+test('overview mode omits type label and shows color legend', async () => {
+  const restoreDate = mockDate('2024-03-20T12:00:00Z');
+  try {
+    document.body.innerHTML = '<div id="calendars"></div>';
+    await setup();
+
+    const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+    settingsButton.click();
+    await flushAsyncOperations();
+
+    const greenInput = document.getElementById('streak-color-label-green') as HTMLInputElement;
+    const redInput = document.getElementById('streak-color-label-red') as HTMLInputElement;
+    const blueInput = document.getElementById('streak-color-label-blue') as HTMLInputElement;
+
+    greenInput.value = 'Emerald';
+    redInput.value = 'Ruby';
+    blueInput.value = 'Azure';
+
+    const saveButton = document.querySelector('.streak-settings__save') as HTMLButtonElement;
+    saveButton.click();
+    await flushAsyncOperations();
+
+    const overviewButton = document.querySelector('[data-view="overview"]') as HTMLButtonElement;
+    overviewButton.click();
+    await flushAsyncOperations();
+
+    await waitForCondition(() => Boolean(document.querySelector('.overview-row__legend')));
+
+    expect(document.querySelector('.overview-row__type')).toBeNull();
+
+    const row = document.querySelector('.overview-row') as HTMLElement;
+    const legend = row.querySelector('.overview-row__legend') as HTMLElement;
+    expect(legend).not.toBeNull();
+    expect(legend.textContent).toContain('Emerald');
+    expect(legend.textContent).toContain('Ruby');
+    expect(legend.textContent).toContain('Azure');
+    expect(legend.querySelectorAll('.overview-legend__swatch').length).toBe(3);
+    expect(legend.querySelectorAll('.overview-legend__swatch--red').length).toBe(1);
+    expect(legend.querySelectorAll('.overview-legend__swatch--green').length).toBe(1);
+    expect(legend.querySelectorAll('.overview-legend__swatch--blue').length).toBe(1);
+  } finally {
+    restoreDate();
+  }
+});
+
 test('overview mode increments count streak and persists', async () => {
   const restoreDate = mockDate('2024-03-20T12:00:00Z');
   const promptSpy = jest
