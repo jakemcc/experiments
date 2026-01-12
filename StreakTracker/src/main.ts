@@ -574,6 +574,13 @@ function setHashStreak(streakName: string): void {
   window.location.hash = encodeURIComponent(streakName);
 }
 
+function clearHashStreak(): void {
+  if (typeof window === 'undefined' || !window.location) {
+    return;
+  }
+  window.location.hash = '';
+}
+
 function getStoredViewMode(): ViewMode {
   if (typeof localStorage === 'undefined') {
     return 'full';
@@ -1482,9 +1489,7 @@ export async function clearAllStoredDaysForTests(): Promise<void> {
 
 function renderStreakControls(
   controlsContainer: HTMLElement,
-  streakNames: string[],
   selectedStreak: string,
-  onSelect: (name: string) => void,
   onCreate: (name: string, streakType: StreakType) => void,
   onRename: (name: string) => void,
   onSettings: () => void,
@@ -1497,73 +1502,6 @@ function renderStreakControls(
 
   const row = document.createElement('div');
   row.className = 'streak-controls__row';
-
-  const pillsWrapper = document.createElement('div');
-  pillsWrapper.className = 'streak-pills';
-  const pillsLabel = document.createElement('span');
-  pillsLabel.className = 'sr-only';
-  pillsLabel.id = 'streak-pills-label';
-  pillsLabel.textContent = 'Choose a streak';
-  pillsWrapper.appendChild(pillsLabel);
-  const pillsList = document.createElement('div');
-  pillsList.className = 'streak-pills__list';
-  pillsList.setAttribute('role', 'group');
-  pillsList.setAttribute('aria-labelledby', 'streak-pills-label');
-  streakNames.forEach((name) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'streak-pill';
-    if (name === selectedStreak) {
-      button.classList.add('streak-pill--active');
-      button.setAttribute('aria-pressed', 'true');
-    } else {
-      button.setAttribute('aria-pressed', 'false');
-    }
-    button.textContent = name;
-    button.addEventListener('click', () => {
-      if (name !== selectedStreak) {
-        onSelect(name);
-      }
-    });
-    pillsList.appendChild(button);
-  });
-  pillsWrapper.appendChild(pillsList);
-  const renameButton = document.createElement('button');
-  renameButton.type = 'button';
-  renameButton.className = 'icon-button streak-rename';
-  renameButton.title = 'Rename streak';
-  renameButton.setAttribute('aria-label', 'Rename selected streak');
-  renameButton.textContent = '✎';
-  renameButton.addEventListener('click', () => {
-    const proposed = prompt('Rename streak', selectedStreak);
-    if (proposed !== null) {
-      onRename(proposed);
-    }
-  });
-  pillsWrapper.appendChild(renameButton);
-
-  const settingsButton = document.createElement('button');
-  settingsButton.type = 'button';
-  settingsButton.className = 'icon-button streak-settings';
-  settingsButton.title = 'Streak settings';
-  settingsButton.setAttribute('aria-label', 'Open streak settings');
-  settingsButton.textContent = '\u2699';
-  settingsButton.addEventListener('click', () => {
-    onSettings();
-  });
-  pillsWrapper.appendChild(settingsButton);
-
-  const deleteButton = document.createElement('button');
-  deleteButton.type = 'button';
-  deleteButton.className = 'icon-button streak-delete';
-  deleteButton.title = 'Delete streak';
-  deleteButton.setAttribute('aria-label', 'Delete selected streak');
-  deleteButton.textContent = '🗑';
-  deleteButton.addEventListener('click', () => {
-    onDelete();
-  });
-  pillsWrapper.appendChild(deleteButton);
-  row.appendChild(pillsWrapper);
 
   const viewToggle = document.createElement('div');
   viewToggle.className = 'view-toggle';
@@ -1596,8 +1534,50 @@ function renderStreakControls(
   };
 
   viewToggle.appendChild(buildViewButton('overview', 'Overview'));
-  viewToggle.appendChild(buildViewButton('full', 'Full'));
   row.appendChild(viewToggle);
+
+  const actions = document.createElement('div');
+  actions.className = 'streak-actions';
+  if (viewMode === 'full') {
+    const renameButton = document.createElement('button');
+    renameButton.type = 'button';
+    renameButton.className = 'icon-button streak-rename';
+    renameButton.title = 'Rename streak';
+    renameButton.setAttribute('aria-label', 'Rename selected streak');
+    renameButton.textContent = '✎';
+    renameButton.addEventListener('click', () => {
+      const proposed = prompt('Rename streak', selectedStreak);
+      if (proposed !== null) {
+        onRename(proposed);
+      }
+    });
+    actions.appendChild(renameButton);
+  }
+
+  const settingsButton = document.createElement('button');
+  settingsButton.type = 'button';
+  settingsButton.className = 'icon-button streak-settings';
+  settingsButton.title = 'Streak settings';
+  settingsButton.setAttribute('aria-label', 'Open streak settings');
+  settingsButton.textContent = '\u2699';
+  settingsButton.addEventListener('click', () => {
+    onSettings();
+  });
+  actions.appendChild(settingsButton);
+
+  if (viewMode === 'full') {
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'icon-button streak-delete';
+    deleteButton.title = 'Delete streak';
+    deleteButton.setAttribute('aria-label', 'Delete selected streak');
+    deleteButton.textContent = '🗑';
+    deleteButton.addEventListener('click', () => {
+      onDelete();
+    });
+    actions.appendChild(deleteButton);
+  }
+  row.appendChild(actions);
 
   const addContainer = document.createElement('div');
   addContainer.className = 'streak-add';
@@ -1636,6 +1616,93 @@ function renderStreakControls(
   addContainer.appendChild(addButton);
   row.appendChild(addContainer);
   controlsContainer.appendChild(row);
+}
+
+function buildDataToolsSection(
+  db: IDBDatabase,
+  onAfterImport: () => void,
+): HTMLFieldSetElement {
+  const dataFieldset = document.createElement('fieldset');
+  dataFieldset.className = 'streak-settings__fieldset data-tools';
+  const dataLegend = document.createElement('legend');
+  dataLegend.textContent = 'Import / Export';
+  dataFieldset.appendChild(dataLegend);
+
+  const exportButton = document.createElement('button');
+  exportButton.type = 'button';
+  exportButton.className = 'data-export';
+  exportButton.textContent = 'Export data';
+  exportButton.addEventListener('click', () => {
+    void (async () => {
+      try {
+        const payload = await buildExportPayload(db);
+        downloadExportPayload(payload);
+      } catch (error) {
+        console.error('Failed to export data', error);
+        alert('Failed to export data.');
+      }
+    })();
+  });
+  dataFieldset.appendChild(exportButton);
+
+  const exportNote = document.createElement('p');
+  exportNote.className = 'data-export__note';
+  exportNote.textContent = 'Export downloads all streaks and settings.';
+  dataFieldset.appendChild(exportNote);
+
+  const importWarning = document.createElement('p');
+  importWarning.className = 'data-import__warning';
+  importWarning.textContent = 'Import replaces all existing streak data and settings.';
+  dataFieldset.appendChild(importWarning);
+
+  const importLabel = document.createElement('label');
+  importLabel.className = 'data-import__label';
+  importLabel.textContent = 'Import from file';
+  const importInput = document.createElement('input');
+  importInput.type = 'file';
+  importInput.accept = 'application/json';
+  importInput.className = 'data-import__input';
+  importLabel.appendChild(importInput);
+  dataFieldset.appendChild(importLabel);
+
+  importInput.addEventListener('change', () => {
+    const file = importInput.files?.[0];
+    if (!file) {
+      return;
+    }
+    importInput.value = '';
+    void (async () => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(await readFileText(file));
+      } catch (error) {
+        console.error('Failed to parse import file', error);
+        alert('Import file must be valid JSON.');
+        return;
+      }
+      const payload = parseImportPayload(parsed);
+      if (!payload) {
+        alert('Import file is invalid.');
+        return;
+      }
+      try {
+        await replaceAllStoredData(db, payload);
+        storeViewMode(payload.viewMode);
+        if (payload.names.length > 0) {
+          setHashStreak(payload.names[0]);
+        } else if (typeof window !== 'undefined' && window.location) {
+          window.location.hash = '';
+        }
+        onAfterImport();
+        await setup();
+      } catch (error) {
+        console.error('Failed to import data', error);
+        alert('Failed to import data.');
+      }
+    })();
+  });
+
+  return dataFieldset;
 }
 
 function openStreakSettingsModal(options: {
@@ -1850,87 +1917,60 @@ function openStreakSettingsModal(options: {
     actions.appendChild(closeButton);
   }
 
-  const dataFieldset = document.createElement('fieldset');
-  dataFieldset.className = 'streak-settings__fieldset data-tools';
-  const dataLegend = document.createElement('legend');
-  dataLegend.textContent = 'Import / Export';
-  dataFieldset.appendChild(dataLegend);
-
-  const exportButton = document.createElement('button');
-  exportButton.type = 'button';
-  exportButton.className = 'data-export';
-  exportButton.textContent = 'Export data';
-  exportButton.addEventListener('click', () => {
-    void (async () => {
-      try {
-        const payload = await buildExportPayload(options.db);
-        downloadExportPayload(payload);
-      } catch (error) {
-        console.error('Failed to export data', error);
-        alert('Failed to export data.');
-      }
-    })();
-  });
-  dataFieldset.appendChild(exportButton);
-
-  const exportNote = document.createElement('p');
-  exportNote.className = 'data-export__note';
-  exportNote.textContent = 'Export downloads all streaks and settings.';
-  dataFieldset.appendChild(exportNote);
-
-  const importWarning = document.createElement('p');
-  importWarning.className = 'data-import__warning';
-  importWarning.textContent = 'Import replaces all existing streak data and settings.';
-  dataFieldset.appendChild(importWarning);
-
-  const importLabel = document.createElement('label');
-  importLabel.className = 'data-import__label';
-  importLabel.textContent = 'Import from file';
-  const importInput = document.createElement('input');
-  importInput.type = 'file';
-  importInput.accept = 'application/json';
-  importInput.className = 'data-import__input';
-  importLabel.appendChild(importInput);
-  dataFieldset.appendChild(importLabel);
-
-  importInput.addEventListener('change', () => {
-    const file = importInput.files?.[0];
-    if (!file) {
-      return;
-    }
-    importInput.value = '';
-    void (async () => {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(await readFileText(file));
-      } catch (error) {
-        console.error('Failed to parse import file', error);
-        alert('Import file must be valid JSON.');
-        return;
-      }
-      const payload = parseImportPayload(parsed);
-      if (!payload) {
-        alert('Import file is invalid.');
-        return;
-      }
-      try {
-        await replaceAllStoredData(options.db, payload);
-        storeViewMode(payload.viewMode);
-        if (payload.names.length > 0) {
-          setHashStreak(payload.names[0]);
-        } else if (typeof window !== 'undefined' && window.location) {
-          window.location.hash = '';
-        }
-        closeModal();
-        await setup();
-      } catch (error) {
-        console.error('Failed to import data', error);
-        alert('Failed to import data.');
-      }
-    })();
-  });
+  const dataFieldset = buildDataToolsSection(options.db, closeModal);
 
   body.appendChild(dataFieldset);
+
+  dialog.appendChild(actions);
+  overlay.appendChild(dialog);
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      closeModal();
+    }
+  });
+  overlay.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeModal();
+    }
+  });
+  overlay.tabIndex = -1;
+  document.body.appendChild(overlay);
+  overlay.focus();
+}
+
+function openGlobalSettingsModal(db: IDBDatabase): void {
+  const existing = document.getElementById('streak-settings-modal');
+  if (existing) {
+    existing.remove();
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'streak-settings-modal';
+  overlay.className = 'streak-settings__overlay';
+  const dialog = document.createElement('div');
+  dialog.className = 'streak-settings__dialog';
+
+  const title = document.createElement('h2');
+  title.textContent = 'Settings';
+  dialog.appendChild(title);
+
+  const body = document.createElement('div');
+  dialog.appendChild(body);
+
+  const actions = document.createElement('div');
+  actions.className = 'streak-settings__actions';
+
+  const closeModal = () => {
+    overlay.remove();
+  };
+
+  const closeButton = document.createElement('button');
+  closeButton.type = 'button';
+  closeButton.textContent = 'Close';
+  closeButton.addEventListener('click', closeModal);
+  actions.appendChild(closeButton);
+
+  body.appendChild(buildDataToolsSection(db, closeModal));
 
   dialog.appendChild(actions);
   overlay.appendChild(dialog);
@@ -1969,6 +2009,7 @@ function renderOverview(
   streakTypes: Map<string, StreakType>,
   streakSettings: Map<string, StreakSettings>,
   lastUpdated: Map<string, number>,
+  onOpenStreak: (name: string) => void,
 ): void {
   container.innerHTML = '';
   const wrapper = document.createElement('div');
@@ -1987,9 +2028,22 @@ function renderOverview(
     row.className = 'overview-row';
     row.dataset.streak = streakName;
 
-    const name = document.createElement('div');
+    const name = document.createElement('button');
+    name.type = 'button';
     name.className = 'overview-row__name';
-    name.textContent = streakName;
+    const nameLabel = document.createElement('span');
+    nameLabel.className = 'overview-row__label';
+    nameLabel.textContent = streakName;
+    name.appendChild(nameLabel);
+
+    const nameChevron = document.createElement('span');
+    nameChevron.className = 'overview-row__chevron';
+    nameChevron.textContent = '›';
+    name.appendChild(nameChevron);
+    name.setAttribute('aria-label', `View details for ${streakName}`);
+    name.addEventListener('click', () => {
+      onOpenStreak(streakName);
+    });
     row.appendChild(name);
 
     if (streakType === STREAK_TYPES.Color) {
@@ -2376,6 +2430,13 @@ export async function setup(): Promise<void> {
 
   let viewMode: ViewMode = getStoredViewMode();
 
+  const openStreakDetails = (name: string) => {
+    setSelectedStreak(name);
+    viewMode = 'full';
+    storeViewMode(viewMode);
+    rerenderAll();
+  };
+
   const rerenderAll = () => {
     if (viewMode === 'overview') {
       renderOverview(
@@ -2387,6 +2448,7 @@ export async function setup(): Promise<void> {
         streakTypes,
         streakSettings,
         lastUpdated,
+        openStreakDetails,
       );
     } else {
       renderCalendars(
@@ -2424,12 +2486,7 @@ export async function setup(): Promise<void> {
   const renderControls = () => {
     renderStreakControls(
       controls,
-      streakNames,
       selectedStreak,
-      (name) => {
-        setSelectedStreak(name);
-        rerenderAll();
-      },
       async (rawName, streakType) => {
         const name = normalizeStreakName(rawName);
         await ensureStreakExists(name, streakType);
@@ -2468,6 +2525,10 @@ export async function setup(): Promise<void> {
         }
       },
       () => {
+        if (viewMode === 'overview') {
+          openGlobalSettingsModal(db);
+          return;
+        }
         if (!selectedStreak) {
           return;
         }
@@ -2554,6 +2615,9 @@ export async function setup(): Promise<void> {
       (mode) => {
         viewMode = mode;
         storeViewMode(mode);
+        if (mode === 'overview') {
+          clearHashStreak();
+        }
         rerenderAll();
       },
     );

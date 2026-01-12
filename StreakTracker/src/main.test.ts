@@ -153,6 +153,28 @@ function getOverviewCell(streakName: string, dateKey: string): HTMLElement {
   return cell;
 }
 
+function getOverviewStreakButton(streakName: string): HTMLButtonElement {
+  const row = Array.from(document.querySelectorAll('.overview-row')).find(
+    (element) => (element as HTMLElement).dataset.streak === streakName,
+  ) as HTMLElement | undefined;
+  if (!row) {
+    throw new Error(`Unable to find overview row for ${streakName}`);
+  }
+  const button = row.querySelector('.overview-row__name') as HTMLButtonElement | null;
+  if (!button) {
+    throw new Error(`Unable to find overview name button for ${streakName}`);
+  }
+  return button;
+}
+
+function openOverview(): void {
+  const button = document.querySelector('[data-view="overview"]') as HTMLButtonElement | null;
+  if (!button) {
+    throw new Error('Unable to find overview toggle button');
+  }
+  button.click();
+}
+
 async function readStoredStreakTypes(): Promise<Map<string, string>> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('streak-tracker', 2);
@@ -281,9 +303,10 @@ test('streak selection uses URL hash and keeps calendars separate', async () => 
   await flushAsyncOperations();
   expect(window.location.hash).toBe('#Work');
 
-  const myStreakButton = Array.from(document.querySelectorAll('.streak-pill')).find(
-    (el) => el.textContent === 'My Streak'
-  ) as HTMLButtonElement;
+  openOverview();
+  await flushAsyncOperations();
+
+  const myStreakButton = getOverviewStreakButton('My Streak');
   myStreakButton.click();
   await flushAsyncOperations();
 
@@ -292,9 +315,10 @@ test('streak selection uses URL hash and keeps calendars separate', async () => 
   defaultCell.click();
   await flushAsyncOperations();
 
-  const workButton = Array.from(document.querySelectorAll('.streak-pill')).find(
-    (el) => el.textContent === 'Work'
-  ) as HTMLButtonElement;
+  openOverview();
+  await flushAsyncOperations();
+
+  const workButton = getOverviewStreakButton('Work');
   workButton.click();
   await flushAsyncOperations();
 
@@ -315,16 +339,23 @@ test('renaming a streak keeps its data and updates selection', async () => {
     renameButton.click();
     await flushAsyncOperations();
 
-    await waitForCondition(() => {
-      const active = document.querySelector('.streak-pill[aria-pressed="true"]') as
-        | HTMLButtonElement
-        | null;
-      return active?.textContent === 'Renamed';
-    });
-    expect(window.location.hash).toBe('#Renamed');
+    await waitForCondition(() => window.location.hash === '#Renamed');
+    openOverview();
+    await flushAsyncOperations();
+    await waitForCondition(() =>
+      Array.from(document.querySelectorAll('.overview-row')).some(
+        (row) => (row as HTMLElement).dataset.streak === 'Renamed'
+      )
+    );
+    expect(window.location.hash).toBe('');
 
     document.body.innerHTML = '<div id="calendars"></div>';
     await setup();
+    openOverview();
+    await flushAsyncOperations();
+    const renamedButton = getOverviewStreakButton('Renamed');
+    renamedButton.click();
+    await flushAsyncOperations();
     const renamedCell = getDayCell('1');
     expect(renamedCell.classList.contains('red')).toBe(true);
   } finally {
@@ -344,21 +375,25 @@ test('renaming to an existing streak name is blocked', async () => {
   try {
     document.body.innerHTML = '<div id="calendars"></div>';
     await setup();
+    openOverview();
+    await flushAsyncOperations();
 
     const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
     addButton.click();
     await waitForCondition(() =>
-      Array.from(document.querySelectorAll('.streak-pill')).some((el) => el.textContent === 'Work')
+      Array.from(document.querySelectorAll('.overview-row')).some(
+        (el) => (el as HTMLElement).dataset.streak === 'Work'
+      )
     );
     addButton.click();
     await waitForCondition(() =>
-      Array.from(document.querySelectorAll('.streak-pill')).some((el) => el.textContent === 'Home')
+      Array.from(document.querySelectorAll('.overview-row')).some(
+        (el) => (el as HTMLElement).dataset.streak === 'Home'
+      )
     );
 
-    const workPill = Array.from(document.querySelectorAll('.streak-pill')).find(
-      (el) => el.textContent === 'Work'
-    ) as HTMLButtonElement;
-    workPill.click();
+    const workButton = getOverviewStreakButton('Work');
+    workButton.click();
     await flushAsyncOperations();
 
     const renameButton = document.querySelector('.streak-rename') as HTMLButtonElement;
@@ -366,17 +401,14 @@ test('renaming to an existing streak name is blocked', async () => {
     await flushAsyncOperations();
 
     expect(alertSpy).toHaveBeenCalled();
-    const pills = Array.from(document.querySelectorAll('.streak-pill')).map(
-      (pill) => (pill as HTMLButtonElement).textContent
+    openOverview();
+    await flushAsyncOperations();
+    const names = Array.from(document.querySelectorAll('.overview-row')).map(
+      (row) => (row as HTMLElement).dataset.streak
     );
-    expect(pills).toContain('Work');
-    expect(pills).toContain('Home');
-
-    const active = document.querySelector('.streak-pill[aria-pressed="true"]') as
-      | HTMLButtonElement
-      | null;
-    expect(active?.textContent).toBe('Work');
-    expect(window.location.hash).toBe('#Work');
+    expect(names).toContain('Work');
+    expect(names).toContain('Home');
+    expect(window.location.hash).toBe('');
   } finally {
     promptSpy.mockRestore();
     alertSpy.mockRestore();
@@ -526,13 +558,15 @@ test('when default streak is missing it selects the most recently updated streak
   window.location.hash = '';
   await setup();
 
-  const pills = Array.from(document.querySelectorAll('.streak-pill')) as HTMLButtonElement[];
-  const options = pills.map((pill) => pill.textContent);
-  expect(options).toContain('Side');
-  expect(options).toContain('Focus');
-  expect(options).not.toContain('My Streak');
-  const active = pills.find((pill) => pill.getAttribute('aria-pressed') === 'true');
-  expect(active?.textContent).toBe('Side');
+  openOverview();
+  await flushAsyncOperations();
+  const names = Array.from(document.querySelectorAll('.overview-row')).map(
+    (row) => (row as HTMLElement).dataset.streak
+  );
+  expect(names).toContain('Side');
+  expect(names).toContain('Focus');
+  expect(names).not.toContain('My Streak');
+  expect(window.location.hash).toBe('');
 });
 
 test('creating a streak uses a prompt and selects the new streak', async () => {
@@ -548,17 +582,14 @@ test('creating a streak uses a prompt and selects the new streak', async () => {
     addButton.click();
     await flushAsyncOperations();
 
-    await waitForCondition(() => {
-      const active = document.querySelector('.streak-pill[aria-pressed="true"]') as
-        | HTMLButtonElement
-        | null;
-      return active?.textContent === 'New Streak';
-    });
-    const pills = Array.from(document.querySelectorAll('.streak-pill')).map(
-      (pill) => (pill as HTMLButtonElement).textContent
+    await waitForCondition(() => window.location.hash === '#New%20Streak');
+    openOverview();
+    await flushAsyncOperations();
+    const names = Array.from(document.querySelectorAll('.overview-row')).map(
+      (row) => (row as HTMLElement).dataset.streak
     );
-    expect(pills).toContain('New Streak');
-    expect(window.location.hash).toBe('#New%20Streak');
+    expect(names).toContain('New Streak');
+    expect(window.location.hash).toBe('');
     const types = await readStoredStreakTypes();
     expect(types.get('New Streak')).toBe('count');
   } finally {
@@ -581,10 +612,12 @@ test('creating a streak requires a valid type selection', async () => {
     await flushAsyncOperations();
 
     expect(alertSpy).toHaveBeenCalled();
-    const pills = Array.from(document.querySelectorAll('.streak-pill')).map(
-      (pill) => (pill as HTMLButtonElement).textContent
+    openOverview();
+    await flushAsyncOperations();
+    const names = Array.from(document.querySelectorAll('.overview-row')).map(
+      (row) => (row as HTMLElement).dataset.streak
     );
-    expect(pills).not.toContain('Invalid Type Streak');
+    expect(names).not.toContain('Invalid Type Streak');
   } finally {
     promptSpy.mockRestore();
     alertSpy.mockRestore();
@@ -605,14 +638,14 @@ test('deleting a streak removes its data and selects a remaining streak', async 
     addButton.click();
     await flushAsyncOperations();
 
-    const workButton = await (async () => {
-      await waitForCondition(() =>
-        Array.from(document.querySelectorAll('.streak-pill')).some((el) => el.textContent === 'Work')
-      );
-      return Array.from(document.querySelectorAll('.streak-pill')).find(
-        (el) => el.textContent === 'Work'
-      ) as HTMLButtonElement;
-    })();
+    openOverview();
+    await flushAsyncOperations();
+    await waitForCondition(() =>
+      Array.from(document.querySelectorAll('.overview-row')).some(
+        (el) => (el as HTMLElement).dataset.streak === 'Work'
+      )
+    );
+    const workButton = getOverviewStreakButton('Work');
     workButton.click();
     await flushAsyncOperations();
 
@@ -624,21 +657,26 @@ test('deleting a streak removes its data and selects a remaining streak', async 
     deleteButton.click();
     await flushAsyncOperations();
 
-    await waitForCondition(() => {
-      const pills = Array.from(document.querySelectorAll('.streak-pill')) as HTMLButtonElement[];
-      return pills.every((pill) => pill.textContent !== 'Work');
-    });
-    const active = document.querySelector('.streak-pill[aria-pressed="true"]') as
-      | HTMLButtonElement
-      | null;
-    expect(active?.textContent).toBe('My Streak');
+    openOverview();
+    await flushAsyncOperations();
+    await waitForCondition(() =>
+      Array.from(document.querySelectorAll('.overview-row')).every(
+        (row) => (row as HTMLElement).dataset.streak !== 'Work'
+      )
+    );
+    expect(window.location.hash).toBe('');
 
     document.body.innerHTML = '<div id="calendars"></div>';
     await setup();
-    const pillsAfter = Array.from(document.querySelectorAll('.streak-pill')).map(
-      (pill) => (pill as HTMLButtonElement).textContent
+    openOverview();
+    await flushAsyncOperations();
+    const namesAfter = Array.from(document.querySelectorAll('.overview-row')).map(
+      (row) => (row as HTMLElement).dataset.streak
     );
-    expect(pillsAfter).not.toContain('Work');
+    expect(namesAfter).not.toContain('Work');
+    const defaultButton = getOverviewStreakButton('My Streak');
+    defaultButton.click();
+    await flushAsyncOperations();
     const dayOne = getDayCell('1');
     expect(dayOne.classList.contains('red')).toBe(false);
   } finally {
@@ -661,18 +699,18 @@ test('deleting the last streak resets to a fresh default streak', async () => {
     deleteButton.click();
     await flushAsyncOperations();
 
-    await waitForCondition(() => {
-      const active = document.querySelector('.streak-pill[aria-pressed="true"]') as
-        | HTMLButtonElement
-        | null;
-      return active?.textContent === 'My Streak';
-    });
+    await waitForCondition(() => window.location.hash === '#My%20Streak');
     expect(window.location.hash).toBe('#My%20Streak');
 
-    const pills = Array.from(document.querySelectorAll('.streak-pill')).map(
-      (pill) => (pill as HTMLButtonElement).textContent
+    openOverview();
+    await flushAsyncOperations();
+    const names = Array.from(document.querySelectorAll('.overview-row')).map(
+      (row) => (row as HTMLElement).dataset.streak
     );
-    expect(pills).toEqual(['My Streak']);
+    expect(names).toEqual(['My Streak']);
+    const defaultButton = getOverviewStreakButton('My Streak');
+    defaultButton.click();
+    await flushAsyncOperations();
     await waitForCondition(() => {
       const cell = getDayCell('1');
       return cell !== undefined && !cell.classList.contains('red');
@@ -910,17 +948,15 @@ test('count streak increments and clamps at zero', async () => {
     addButton.click();
     await flushAsyncOperations();
 
-    const countPill = await (async () => {
-      await waitForCondition(() =>
-        Array.from(document.querySelectorAll('.streak-pill')).some(
-          (el) => el.textContent === 'Counts'
-        )
-      );
-      return Array.from(document.querySelectorAll('.streak-pill')).find(
-        (el) => el.textContent === 'Counts'
-      ) as HTMLButtonElement;
-    })();
-    countPill.click();
+    openOverview();
+    await flushAsyncOperations();
+    await waitForCondition(() =>
+      Array.from(document.querySelectorAll('.overview-row')).some(
+        (el) => (el as HTMLElement).dataset.streak === 'Counts'
+      )
+    );
+    const countButton = getOverviewStreakButton('Counts');
+    countButton.click();
     await flushAsyncOperations();
 
     const dayCell = getDayCell('1');
@@ -1003,17 +1039,15 @@ test('count streak stats include zeros from first recorded day', async () => {
     addButton.click();
     await flushAsyncOperations();
 
-    const countPill = await (async () => {
-      await waitForCondition(() =>
-        Array.from(document.querySelectorAll('.streak-pill')).some(
-          (el) => el.textContent === 'Counts'
-        )
-      );
-      return Array.from(document.querySelectorAll('.streak-pill')).find(
-        (el) => el.textContent === 'Counts'
-      ) as HTMLButtonElement;
-    })();
-    countPill.click();
+    openOverview();
+    await flushAsyncOperations();
+    await waitForCondition(() =>
+      Array.from(document.querySelectorAll('.overview-row')).some(
+        (el) => (el as HTMLElement).dataset.streak === 'Counts'
+      )
+    );
+    const countButton = getOverviewStreakButton('Counts');
+    countButton.click();
     await flushAsyncOperations();
 
     const dayTwo = getDayCell('2');
@@ -1068,17 +1102,15 @@ test('count streak stats start from custom date', async () => {
     addButton.click();
     await flushAsyncOperations();
 
-    const countPill = await (async () => {
-      await waitForCondition(() =>
-        Array.from(document.querySelectorAll('.streak-pill')).some(
-          (el) => el.textContent === 'Counts'
-        )
-      );
-      return Array.from(document.querySelectorAll('.streak-pill')).find(
-        (el) => el.textContent === 'Counts'
-      ) as HTMLButtonElement;
-    })();
-    countPill.click();
+    openOverview();
+    await flushAsyncOperations();
+    await waitForCondition(() =>
+      Array.from(document.querySelectorAll('.overview-row')).some(
+        (el) => (el as HTMLElement).dataset.streak === 'Counts'
+      )
+    );
+    const countButton = getOverviewStreakButton('Counts');
+    countButton.click();
     await flushAsyncOperations();
 
     const dayOne = getDayCell('1');
@@ -1156,17 +1188,15 @@ test('count settings use the start from date label', async () => {
     addButton.click();
     await flushAsyncOperations();
 
-    const countPill = await (async () => {
-      await waitForCondition(() =>
-        Array.from(document.querySelectorAll('.streak-pill')).some(
-          (el) => el.textContent === 'Counts'
-        )
-      );
-      return Array.from(document.querySelectorAll('.streak-pill')).find(
-        (el) => el.textContent === 'Counts'
-      ) as HTMLButtonElement;
-    })();
-    countPill.click();
+    openOverview();
+    await flushAsyncOperations();
+    await waitForCondition(() =>
+      Array.from(document.querySelectorAll('.overview-row')).some(
+        (el) => (el as HTMLElement).dataset.streak === 'Counts'
+      )
+    );
+    const countButton = getOverviewStreakButton('Counts');
+    countButton.click();
     await flushAsyncOperations();
 
     const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
@@ -1193,17 +1223,15 @@ test('count streak settings persist and update the zero start option', async () 
     addButton.click();
     await flushAsyncOperations();
 
-    const countPill = await (async () => {
-      await waitForCondition(() =>
-        Array.from(document.querySelectorAll('.streak-pill')).some(
-          (el) => el.textContent === 'Counts'
-        )
-      );
-      return Array.from(document.querySelectorAll('.streak-pill')).find(
-        (el) => el.textContent === 'Counts'
-      ) as HTMLButtonElement;
-    })();
-    countPill.click();
+    openOverview();
+    await flushAsyncOperations();
+    await waitForCondition(() =>
+      Array.from(document.querySelectorAll('.overview-row')).some(
+        (el) => (el as HTMLElement).dataset.streak === 'Counts'
+      )
+    );
+    const countButton = getOverviewStreakButton('Counts');
+    countButton.click();
     await flushAsyncOperations();
 
     const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
@@ -1315,6 +1343,10 @@ test('overview mode shows 7-day strips and updates color streak', async () => {
 
     const rows = document.querySelectorAll('.overview-row');
     expect(rows.length).toBe(1);
+    const nameButton = rows[0].querySelector('.overview-row__name') as HTMLButtonElement | null;
+    expect(nameButton).not.toBeNull();
+    expect(nameButton?.tagName).toBe('BUTTON');
+    expect(nameButton?.querySelector('.overview-row__chevron')?.textContent).toBe('›');
     const dayCells = rows[0].querySelectorAll('.overview-day');
     expect(dayCells.length).toBe(7);
 
@@ -1324,8 +1356,8 @@ test('overview mode shows 7-day strips and updates color streak', async () => {
     await flushAsyncOperations();
     expect(cell.classList.contains('red')).toBe(true);
 
-    const fullButton = document.querySelector('[data-view="full"]') as HTMLButtonElement;
-    fullButton.click();
+    const streakButton = getOverviewStreakButton('My Streak');
+    streakButton.click();
     await flushAsyncOperations();
 
     const fullCell = getDayCell('20');
@@ -1380,6 +1412,48 @@ test('overview mode omits type label and shows color legend', async () => {
   }
 });
 
+test('overview button clears the selected streak hash', async () => {
+  window.location.hash = '#Work';
+  document.body.innerHTML = '<div id="calendars"></div>';
+  await setup();
+
+  const overviewButton = document.querySelector('[data-view="overview"]') as HTMLButtonElement;
+  overviewButton.click();
+  await flushAsyncOperations();
+
+  expect(window.location.hash).toBe('');
+});
+
+test('overview settings modal omits streak-specific options', async () => {
+  document.body.innerHTML = '<div id="calendars"></div>';
+  await setup();
+
+  openOverview();
+  await flushAsyncOperations();
+
+  const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+  settingsButton.click();
+  await flushAsyncOperations();
+
+  await waitForCondition(() => Boolean(document.querySelector('.data-import__input')));
+  expect(document.getElementById('streak-color-label-green')).toBeNull();
+  expect(document.querySelector('input[name="count-zero-start"]')).toBeNull();
+});
+
+test('overview mode hides per-streak actions', async () => {
+  document.body.innerHTML = '<div id="calendars"></div>';
+  await setup();
+
+  openOverview();
+  await flushAsyncOperations();
+
+  await waitForCondition(() => Boolean(document.querySelector('.overview-row')));
+  expect(document.querySelector('.streak-rename')).toBeNull();
+  expect(document.querySelector('.streak-delete')).toBeNull();
+  expect(document.querySelector('.streak-settings')).not.toBeNull();
+  expect(document.querySelector('.streak-add__button')).not.toBeNull();
+});
+
 test('overview mode increments count streak and persists', async () => {
   const restoreDate = mockDate('2024-03-20T12:00:00Z');
   const promptSpy = jest
@@ -1394,15 +1468,13 @@ test('overview mode increments count streak and persists', async () => {
     addButton.click();
     await flushAsyncOperations();
 
+    openOverview();
+    await flushAsyncOperations();
     await waitForCondition(() =>
-      Array.from(document.querySelectorAll('.streak-pill')).some(
-        (element) => element.textContent === 'Counts',
+      Array.from(document.querySelectorAll('.overview-row')).some(
+        (element) => (element as HTMLElement).dataset.streak === 'Counts',
       ),
     );
-
-    const overviewButton = document.querySelector('[data-view="overview"]') as HTMLButtonElement;
-    overviewButton.click();
-    await flushAsyncOperations();
 
     const todayKey = '2024-3-20';
     const cell = getOverviewCell('Counts', todayKey);
@@ -1412,14 +1484,8 @@ test('overview mode increments count streak and persists', async () => {
     const value = cell.querySelector('.overview-day__value') as HTMLElement;
     expect(value.textContent).toBe('1');
 
-    const fullButton = document.querySelector('[data-view="full"]') as HTMLButtonElement;
-    fullButton.click();
-    await flushAsyncOperations();
-
-    const countPill = Array.from(document.querySelectorAll('.streak-pill')).find(
-      (element) => element.textContent === 'Counts',
-    ) as HTMLButtonElement;
-    countPill.click();
+    const countButton = getOverviewStreakButton('Counts');
+    countButton.click();
     await flushAsyncOperations();
 
     const fullCell = getDayCell('20');
@@ -1490,12 +1556,8 @@ test('import replaces existing streak data', async () => {
   importInput.dispatchEvent(new Event('change'));
   await flushAsyncOperations();
 
-    await waitForCondition(() => {
-      const pills = Array.from(document.querySelectorAll('.streak-pill')).map(
-        (pill) => (pill as HTMLButtonElement).textContent,
-      );
-      return pills.includes('Imported') && !pills.includes('My Streak');
-    });
+    await waitForCondition(() => window.location.hash === '#Imported');
+    await waitForCondition(() => Boolean(document.querySelector('.calendar')));
 
     const dayTwo = getDayCell('2');
     expect(dayTwo.classList.contains('green')).toBe(true);

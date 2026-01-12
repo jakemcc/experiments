@@ -31,20 +31,13 @@
       flex-wrap: wrap;
       padding-bottom: 4px;
     }
-    .streak-pills {
-      display: flex;
-      flex: 1 1 auto;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-      align-items: flex-start;
-      min-width: 200px;
-    }
-    .streak-pills__list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-    }
     .view-toggle {
+      display: inline-flex;
+      gap: 0.35rem;
+      align-items: center;
+      flex: 0 0 auto;
+    }
+    .streak-actions {
       display: inline-flex;
       gap: 0.35rem;
       align-items: center;
@@ -62,20 +55,6 @@
       box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
     }
     .view-toggle__button:hover {
-      background: #e8f1ff;
-      border-color: #90caf9;
-    }
-    .streak-pill {
-      padding: 0.35rem 0.6rem;
-      border-radius: 6px;
-      border: 1px solid #cfd8dc;
-      background: #f5f8fa;
-      color: #1a2a3a;
-      cursor: pointer;
-      transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-      box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
-    }
-    .streak-pill:hover {
       background: #e8f1ff;
       border-color: #90caf9;
     }
@@ -243,9 +222,34 @@
       flex-wrap: wrap;
     }
     .overview-row__name {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
       font-weight: 600;
       min-width: 120px;
       color: #1a2a3a;
+      background: none;
+      border: none;
+      padding: 0;
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+    }
+    .overview-row__label {
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .overview-row__chevron {
+      color: #1976d2;
+      font-size: 0.95em;
+    }
+    .overview-row__name:hover {
+      color: #0d47a1;
+    }
+    .overview-row__name:focus-visible {
+      outline: 2px solid #1976d2;
+      outline-offset: 2px;
+      border-radius: 4px;
     }
     .overview-row__legend {
       display: inline-flex;
