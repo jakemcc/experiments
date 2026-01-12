@@ -78,5 +78,25 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - id: deployment
+      - name: Deploy to github pages
+        id: deployment
         uses: actions/deploy-pages@v4
+      - name: Purge Cloudflare cache for /experiments/
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+        run: |
+          set -euo pipefail
+      
+          # Purge everything under jake.in/experiments/
+          # (include both apex + www in case both are proxied/cached)
+          body='{"prefixes":["jake.in/experiments","www.jake.in/experiments"]}'
+      
+          resp="$(curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/purge_cache" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "${body}")"
+      
+          echo "$resp" | jq .
+          echo "$resp" | jq -e '.success == true' >/dev/null
+      
