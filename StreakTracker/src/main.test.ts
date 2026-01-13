@@ -175,6 +175,22 @@ function openOverview(): void {
   button.click();
 }
 
+async function setupWithStreak(streakName = 'My Streak'): Promise<void> {
+  window.location.hash = `#${encodeURIComponent(streakName)}`;
+  document.body.innerHTML = '<div id="calendars"></div>';
+  await setup();
+}
+
+async function setupInOverview(): Promise<void> {
+  window.location.hash = '#overview';
+  document.body.innerHTML = '<div id="calendars"></div>';
+  await setup();
+}
+
+function triggerHashChange(): void {
+  window.dispatchEvent(new Event('hashchange'));
+}
+
 async function readStoredStreakTypes(): Promise<Map<string, string>> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('streak-tracker', 2);
@@ -218,7 +234,7 @@ beforeEach(async () => {
   localStorage.clear();
   await clearAllStoredDaysForTests();
   if (typeof window !== 'undefined') {
-    window.location.hash = '';
+    window.location.hash = '#My%20Streak';
   }
 });
 
@@ -268,27 +284,23 @@ test('migrateStreakTypes defaults to color and is idempotent', () => {
 });
 
 test('clicking a day saves and restores its state', async () => {
-  document.body.innerHTML = '<div id="calendars"></div>';
-  await setup();
+  await setupWithStreak();
   const cell = getDayCell('1');
   cell.dispatchEvent(new Event('click'));
   await flushAsyncOperations();
-  document.body.innerHTML = '<div id="calendars"></div>';
-  await setup();
+  await setupWithStreak();
   const cell2 = getDayCell('1');
   expect(cell2.classList.contains('red')).toBe(true);
 });
 
 test('third click sets day to blue and persists state', async () => {
-  document.body.innerHTML = '<div id="calendars"></div>';
-  await setup();
+  await setupWithStreak();
   const cell = getDayCell('1');
   cell.click();
   cell.click();
   cell.click();
   await flushAsyncOperations();
-  document.body.innerHTML = '<div id="calendars"></div>';
-  await setup();
+  await setupWithStreak();
   const cell2 = getDayCell('1');
   expect(cell2.classList.contains('blue')).toBe(true);
 });
@@ -329,8 +341,7 @@ test('streak selection uses URL hash and keeps calendars separate', async () => 
 test('renaming a streak keeps its data and updates selection', async () => {
   const promptSpy = jest.spyOn(window, 'prompt').mockReturnValue('Renamed');
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
     const firstCell = getDayCell('1');
     firstCell.click();
     await flushAsyncOperations();
@@ -347,10 +358,9 @@ test('renaming a streak keeps its data and updates selection', async () => {
         (row) => (row as HTMLElement).dataset.streak === 'Renamed'
       )
     );
-    expect(window.location.hash).toBe('');
+    expect(window.location.hash).toBe('#overview');
 
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
     openOverview();
     await flushAsyncOperations();
     const renamedButton = getOverviewStreakButton('Renamed');
@@ -373,8 +383,7 @@ test('renaming to an existing streak name is blocked', async () => {
     .mockImplementationOnce(() => 'Home');
   const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
     openOverview();
     await flushAsyncOperations();
 
@@ -408,7 +417,7 @@ test('renaming to an existing streak name is blocked', async () => {
     );
     expect(names).toContain('Work');
     expect(names).toContain('Home');
-    expect(window.location.hash).toBe('');
+    expect(window.location.hash).toBe('#overview');
   } finally {
     promptSpy.mockRestore();
     alertSpy.mockRestore();
@@ -416,8 +425,7 @@ test('renaming to an existing streak name is blocked', async () => {
 });
 
 test('color settings rename labels and show swatches in stats', async () => {
-  document.body.innerHTML = '<div id="calendars"></div>';
-  await setup();
+  await setupWithStreak();
 
   const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
   settingsButton.click();
@@ -461,8 +469,7 @@ test('export downloads streak data as JSON', async () => {
   const restoreDate = mockDate('2024-04-10T12:00:00Z');
   const download = mockDownloadCapture();
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
 
     const dayOne = getDayCell('1');
     dayOne.click();
@@ -497,16 +504,14 @@ test('export downloads streak data as JSON', async () => {
 });
 
 test('settings button uses a gear icon', async () => {
-  document.body.innerHTML = '<div id="calendars"></div>';
-  await setup();
+  await setupWithStreak();
 
   const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
   expect(settingsButton.textContent).toBe('\u2699');
 });
 
 test('import warning text is visible in settings', async () => {
-  document.body.innerHTML = '<div id="calendars"></div>';
-  await setup();
+  await setupWithStreak();
 
   const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
   settingsButton.click();
@@ -554,19 +559,14 @@ test('when default streak is missing it selects the most recently updated streak
     };
   });
 
-  document.body.innerHTML = '<div id="calendars"></div>';
-  window.location.hash = '';
-  await setup();
-
-  openOverview();
-  await flushAsyncOperations();
+  await setupInOverview();
   const names = Array.from(document.querySelectorAll('.overview-row')).map(
     (row) => (row as HTMLElement).dataset.streak
   );
   expect(names).toContain('Side');
   expect(names).toContain('Focus');
   expect(names).not.toContain('My Streak');
-  expect(window.location.hash).toBe('');
+  expect(window.location.hash).toBe('#overview');
 });
 
 test('creating a streak uses a prompt and selects the new streak', async () => {
@@ -575,8 +575,7 @@ test('creating a streak uses a prompt and selects the new streak', async () => {
     .mockImplementationOnce(() => 'New Streak')
     .mockImplementationOnce(() => 'Count');
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
 
     const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
     addButton.click();
@@ -589,7 +588,7 @@ test('creating a streak uses a prompt and selects the new streak', async () => {
       (row) => (row as HTMLElement).dataset.streak
     );
     expect(names).toContain('New Streak');
-    expect(window.location.hash).toBe('');
+    expect(window.location.hash).toBe('#overview');
     const types = await readStoredStreakTypes();
     expect(types.get('New Streak')).toBe('count');
   } finally {
@@ -604,8 +603,7 @@ test('creating a streak requires a valid type selection', async () => {
     .mockImplementationOnce(() => 'Not A Type');
   const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
 
     const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
     addButton.click();
@@ -631,8 +629,7 @@ test('deleting a streak removes its data and selects a remaining streak', async 
     .mockImplementationOnce(() => 'Colors');
   const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
 
     const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
     addButton.click();
@@ -664,10 +661,9 @@ test('deleting a streak removes its data and selects a remaining streak', async 
         (row) => (row as HTMLElement).dataset.streak !== 'Work'
       )
     );
-    expect(window.location.hash).toBe('');
+    expect(window.location.hash).toBe('#overview');
 
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
     openOverview();
     await flushAsyncOperations();
     const namesAfter = Array.from(document.querySelectorAll('.overview-row')).map(
@@ -688,8 +684,7 @@ test('deleting a streak removes its data and selects a remaining streak', async 
 test('deleting the last streak resets to a fresh default streak', async () => {
   const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
 
     const dayOne = getDayCell('1');
     dayOne.click();
@@ -724,7 +719,6 @@ test('deleting the last streak resets to a fresh default streak', async () => {
 
 test('legacy unscoped data is migrated into the default streak', async () => {
   const restoreDate = mockDate('2024-02-10T00:00:00Z');
-  document.body.innerHTML = '<div id="calendars"></div>';
 
   await new Promise<void>((resolve, reject) => {
     const request = indexedDB.open('streak-tracker', 2);
@@ -747,19 +741,18 @@ test('legacy unscoped data is migrated into the default streak', async () => {
     };
   });
 
-  await setup();
+  await setupWithStreak();
   const cell = getDayCell('1');
   expect(cell.classList.contains('green')).toBe(true);
   restoreDate();
 });
 
 test('renders previous months below current month', async () => {
-  document.body.innerHTML = '<div id="calendars"></div>';
   const now = new Date();
   const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const key = `${prev.getFullYear()}-${prev.getMonth() + 1}-1`;
   localStorage.setItem(key, '1');
-  await setup();
+  await setupWithStreak();
   const headings = Array.from(document.querySelectorAll('h1')).map(
     (h) => h.textContent
   );
@@ -779,8 +772,7 @@ test('renders previous months below current month', async () => {
 
 test('stats update for all colors and streaks', async () => {
   const restoreDate = mockDate('2023-06-15T00:00:00Z');
-  document.body.innerHTML = '<div id="calendars"></div>';
-  await setup();
+  await setupWithStreak();
   const stats = document.querySelector('.stats') as HTMLElement;
   const daysPassed = new Date().getDate();
   const getStatLines = () =>
@@ -828,8 +820,7 @@ test('stats update for all colors and streaks', async () => {
 
 test('focus refresh updates date-dependent stats', async () => {
   const restoreDate = mockDate('2024-06-10T12:00:00Z');
-  document.body.innerHTML = '<div id="calendars"></div>';
-  await setup();
+  await setupWithStreak();
 
   const getStatsText = () => {
     const stats = document.querySelector('.stats') as HTMLElement | null;
@@ -852,8 +843,7 @@ test('focus refresh updates date-dependent stats', async () => {
 test('longest green or blue streak spans both colors', async () => {
   const restoreDate = mockDate('2023-06-15T00:00:00Z');
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
     const stats = document.querySelector('.stats') as HTMLElement;
     const daysPassed = new Date().getDate();
     const getState = (cell: HTMLElement) => {
@@ -942,8 +932,7 @@ test('count streak increments and clamps at zero', async () => {
     .mockImplementationOnce(() => 'Counts')
     .mockImplementationOnce(() => 'Count');
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
     const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
     addButton.click();
     await flushAsyncOperations();
@@ -1033,8 +1022,7 @@ test('count streak stats include zeros from first recorded day', async () => {
     .mockImplementationOnce(() => 'Counts')
     .mockImplementationOnce(() => 'Count');
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
     const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
     addButton.click();
     await flushAsyncOperations();
@@ -1095,8 +1083,7 @@ test('count streak stats start from custom date', async () => {
     .mockImplementationOnce(() => 'Counts')
     .mockImplementationOnce(() => 'Count');
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
 
     const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
     addButton.click();
@@ -1181,8 +1168,7 @@ test('count settings use the start from date label', async () => {
     .mockImplementationOnce(() => 'Counts')
     .mockImplementationOnce(() => 'Count');
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
 
     const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
     addButton.click();
@@ -1217,8 +1203,7 @@ test('count streak settings persist and update the zero start option', async () 
     .mockImplementationOnce(() => 'Counts')
     .mockImplementationOnce(() => 'Count');
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
     const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
     addButton.click();
     await flushAsyncOperations();
@@ -1274,8 +1259,7 @@ test('count streak settings persist and update the zero start option', async () 
 });
 
 test('color streak settings hide count-only options', async () => {
-  document.body.innerHTML = '<div id="calendars"></div>';
-  await setup();
+  await setupWithStreak();
   const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
   settingsButton.click();
   await flushAsyncOperations();
@@ -1334,8 +1318,7 @@ test('persistDayValue stores or removes day values and records activity', async 
 test('overview mode shows 7-day strips and updates color streak', async () => {
   const restoreDate = mockDate('2024-03-20T12:00:00Z');
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
 
     const overviewButton = document.querySelector('[data-view="overview"]') as HTMLButtonElement;
     overviewButton.click();
@@ -1370,8 +1353,7 @@ test('overview mode shows 7-day strips and updates color streak', async () => {
 test('overview mode omits type label and shows color legend', async () => {
   const restoreDate = mockDate('2024-03-20T12:00:00Z');
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
 
     const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
     settingsButton.click();
@@ -1412,7 +1394,7 @@ test('overview mode omits type label and shows color legend', async () => {
   }
 });
 
-test('overview button clears the selected streak hash', async () => {
+test('overview button sets the overview hash', async () => {
   window.location.hash = '#Work';
   document.body.innerHTML = '<div id="calendars"></div>';
   await setup();
@@ -1421,12 +1403,11 @@ test('overview button clears the selected streak hash', async () => {
   overviewButton.click();
   await flushAsyncOperations();
 
-  expect(window.location.hash).toBe('');
+  expect(window.location.hash).toBe('#overview');
 });
 
 test('overview settings modal omits streak-specific options', async () => {
-  document.body.innerHTML = '<div id="calendars"></div>';
-  await setup();
+  await setupWithStreak();
 
   openOverview();
   await flushAsyncOperations();
@@ -1441,8 +1422,7 @@ test('overview settings modal omits streak-specific options', async () => {
 });
 
 test('overview mode hides per-streak actions', async () => {
-  document.body.innerHTML = '<div id="calendars"></div>';
-  await setup();
+  await setupWithStreak();
 
   openOverview();
   await flushAsyncOperations();
@@ -1461,8 +1441,7 @@ test('overview mode increments count streak and persists', async () => {
     .mockImplementationOnce(() => 'Counts')
     .mockImplementationOnce(() => 'Count');
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
 
     const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
     addButton.click();
@@ -1504,8 +1483,7 @@ test('overview count cells omit unused count class', async () => {
     .mockImplementationOnce(() => 'Counts')
     .mockImplementationOnce(() => 'Count');
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
 
     const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
     addButton.click();
@@ -1527,8 +1505,7 @@ test('overview count cells omit unused count class', async () => {
 test('import replaces existing streak data', async () => {
   const restoreDate = mockDate('2024-04-10T12:00:00Z');
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
+    await setupWithStreak();
 
     const dayOne = getDayCell('1');
     dayOne.click();
@@ -1571,20 +1548,43 @@ test('import replaces existing streak data', async () => {
 test('view mode persists across reloads', async () => {
   const restoreDate = mockDate('2024-03-20T12:00:00Z');
   try {
-    document.body.innerHTML = '<div id="calendars"></div>';
-    await setup();
-
-    const overviewButton = document.querySelector('[data-view="overview"]') as HTMLButtonElement;
-    overviewButton.click();
-    await flushAsyncOperations();
-
+    await setupInOverview();
     expect(document.querySelectorAll('.overview-row').length).toBe(1);
 
     document.body.innerHTML = '<div id="calendars"></div>';
     await setup();
 
+    expect(window.location.hash).toBe('#overview');
     expect(document.querySelectorAll('.overview-row').length).toBe(1);
   } finally {
     restoreDate();
   }
+});
+
+test('initial load defaults to overview view and updates the hash', async () => {
+  window.location.hash = '';
+  document.body.innerHTML = '<div id="calendars"></div>';
+  await setup();
+
+  await waitForCondition(() => Boolean(document.querySelector('.overview-row')));
+  expect(window.location.hash).toBe('#overview');
+  expect(document.querySelector('.calendar')).toBeNull();
+});
+
+test('hash navigation returns to overview from streak detail', async () => {
+  await setupInOverview();
+  await waitForCondition(() => Boolean(document.querySelector('.overview-row')));
+
+  const streakButton = getOverviewStreakButton('My Streak');
+  streakButton.click();
+  await flushAsyncOperations();
+  await waitForCondition(() => Boolean(document.querySelector('.calendar')));
+  expect(window.location.hash).toBe('#My%20Streak');
+
+  window.location.hash = '#overview';
+  triggerHashChange();
+  await flushAsyncOperations();
+
+  await waitForCondition(() => Boolean(document.querySelector('.overview-row')));
+  expect(document.querySelector('.calendar')).toBeNull();
 });

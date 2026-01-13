@@ -10,6 +10,7 @@ const VIEW_MODE_KEY = 'viewMode';
 const DATE_KEY_PATTERN = /^\d{4}-\d{1,2}-\d{1,2}$/;
 const DAY_KEY_PATTERN = /^([^:]+)::(\d{4}-\d{1,2}-\d{1,2})$/;
 const DEFAULT_STREAK_NAME = 'My Streak';
+const OVERVIEW_HASH = 'overview';
 
 export const DAY_STATES = {
   None: 0,
@@ -124,6 +125,9 @@ export function migrateStreakTypes(
 let dbPromise: Promise<IDBDatabase> | null = null;
 let refreshHandler: (() => void) | null = null;
 let refreshHandlersBound = false;
+let hashChangeHandler: (() => void) | null = null;
+let hashChangeBound = false;
+let suppressHashChange = false;
 
 function bindRefreshHandlers(): void {
   if (refreshHandlersBound || typeof window === 'undefined' || typeof document === 'undefined') {
@@ -132,6 +136,20 @@ function bindRefreshHandlers(): void {
   window.addEventListener('focus', () => refreshHandler?.());
   document.addEventListener('visibilitychange', () => refreshHandler?.());
   refreshHandlersBound = true;
+}
+
+function bindHashChangeHandler(): void {
+  if (hashChangeBound || typeof window === 'undefined') {
+    return;
+  }
+  window.addEventListener('hashchange', () => {
+    if (suppressHashChange) {
+      suppressHashChange = false;
+      return;
+    }
+    hashChangeHandler?.();
+  });
+  hashChangeBound = true;
 }
 
 function applyDayStateClass(cell: HTMLElement, state: DayState): void {
@@ -552,7 +570,7 @@ function getMostRecentlyUpdatedStreak(
   return first.done ? null : first.value;
 }
 
-function getHashStreak(): string | null {
+function getHashValue(): string | null {
   if (typeof window === 'undefined' || !window.location) {
     return null;
   }
@@ -567,18 +585,40 @@ function getHashStreak(): string | null {
   }
 }
 
+function parseHashView(): { viewMode: ViewMode; streakName: string | null } {
+  const hash = getHashValue();
+  if (!hash || hash === OVERVIEW_HASH) {
+    return { viewMode: 'overview', streakName: null };
+  }
+  return { viewMode: 'full', streakName: hash };
+}
+
 function setHashStreak(streakName: string): void {
   if (typeof window === 'undefined' || !window.location) {
     return;
   }
+  const next = `#${encodeURIComponent(streakName)}`;
+  if (window.location.hash === next) {
+    return;
+  }
+  suppressHashChange = true;
   window.location.hash = encodeURIComponent(streakName);
 }
 
-function clearHashStreak(): void {
+function setOverviewHash(): void {
   if (typeof window === 'undefined' || !window.location) {
     return;
   }
-  window.location.hash = '';
+  const next = `#${OVERVIEW_HASH}`;
+  if (window.location.hash === next) {
+    return;
+  }
+  suppressHashChange = true;
+  window.location.hash = OVERVIEW_HASH;
+}
+
+function clearHashStreak(): void {
+  setOverviewHash();
 }
 
 function getStoredViewMode(): ViewMode {
@@ -1526,9 +1566,7 @@ function renderStreakControls(
     button.dataset.view = mode;
     button.textContent = label;
     button.addEventListener('click', () => {
-      if (mode !== viewMode) {
-        onViewModeChange(mode);
-      }
+      onViewModeChange(mode);
     });
     return button;
   };
@@ -2384,8 +2422,11 @@ export async function setup(): Promise<void> {
   const normalizedStoredNames = storedNames.map(normalizeStreakName);
   let namesSet = buildNamesSet(storedNames, streakNamesFromStates);
 
-  const hashStreak = getHashStreak();
-  const normalizedHashStreak = hashStreak ? normalizeStreakName(hashStreak) : null;
+  const hashView = parseHashView();
+  const normalizedHashStreak = hashView.streakName
+    ? normalizeStreakName(hashView.streakName)
+    : null;
+  let viewMode: ViewMode = hashView.viewMode;
 
   const fallbackNames = [
     ...normalizedStoredNames,
@@ -2419,19 +2460,21 @@ export async function setup(): Promise<void> {
   if (shouldRecordInitialActivity) {
     await recordStreakActivity(db, lastUpdated, selectedStreak);
   }
-  if (selectedStreak) {
+  if (viewMode === 'full' && selectedStreak) {
     setHashStreak(selectedStreak);
+  } else {
+    setOverviewHash();
   }
 
-  const setSelectedStreak = (name: string) => {
+  const setSelectedStreak = (name: string, updateHash = viewMode === 'full') => {
     selectedStreak = normalizeStreakName(name);
-    setHashStreak(selectedStreak);
+    if (updateHash) {
+      setHashStreak(selectedStreak);
+    }
   };
 
-  let viewMode: ViewMode = getStoredViewMode();
-
   const openStreakDetails = (name: string) => {
-    setSelectedStreak(name);
+    setSelectedStreak(name, true);
     viewMode = 'full';
     storeViewMode(viewMode);
     rerenderAll();
@@ -2465,6 +2508,32 @@ export async function setup(): Promise<void> {
     renderControls();
   };
 
+  const handleHashNavigation = () => {
+    const nextView = parseHashView();
+    if (nextView.viewMode === 'overview') {
+      viewMode = 'overview';
+      storeViewMode(viewMode);
+      rerenderAll();
+      return;
+    }
+    if (!nextView.streakName) {
+      viewMode = 'overview';
+      storeViewMode(viewMode);
+      rerenderAll();
+      return;
+    }
+    const normalized = normalizeStreakName(nextView.streakName);
+    if (!streakNames.includes(normalized)) {
+      streakNames = [...streakNames, normalized];
+      streakStates.set(normalized, streakStates.get(normalized) ?? new Map());
+      void saveStreakNames(db, streakNames);
+    }
+    selectedStreak = normalized;
+    viewMode = 'full';
+    storeViewMode(viewMode);
+    rerenderAll();
+  };
+
   refreshHandler = () => {
     now = new Date();
     rerenderAll();
@@ -2490,7 +2559,10 @@ export async function setup(): Promise<void> {
       async (rawName, streakType) => {
         const name = normalizeStreakName(rawName);
         await ensureStreakExists(name, streakType);
-        setSelectedStreak(name);
+        setSelectedStreak(name, viewMode === 'full');
+        if (viewMode === 'overview') {
+          setOverviewHash();
+        }
         await recordStreakActivity(db, lastUpdated, selectedStreak);
         rerenderAll();
       },
@@ -2616,12 +2688,15 @@ export async function setup(): Promise<void> {
         viewMode = mode;
         storeViewMode(mode);
         if (mode === 'overview') {
-          clearHashStreak();
+          setOverviewHash();
         }
         rerenderAll();
       },
     );
   };
+
+  hashChangeHandler = handleHashNavigation;
+  bindHashChangeHandler();
 
   rerenderAll();
 }
