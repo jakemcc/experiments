@@ -1583,10 +1583,10 @@ function renderStreakControls(
     renameButton.title = 'Rename streak';
     renameButton.setAttribute('aria-label', 'Rename selected streak');
     renameButton.textContent = '✎';
-    renameButton.addEventListener('click', () => {
+    renameButton.addEventListener('click', async () => {
       const proposed = prompt('Rename streak', selectedStreak);
       if (proposed !== null) {
-        onRename(proposed);
+        await onRename(proposed);
       }
     });
     actions.appendChild(renameButton);
@@ -1625,7 +1625,7 @@ function renderStreakControls(
   addButton.textContent = '+';
   addButton.title = 'Create new streak';
   addButton.setAttribute('aria-label', 'Create new streak');
-  addButton.addEventListener('click', () => {
+  addButton.addEventListener('click', async () => {
     const proposed = prompt('Create new streak');
     if (proposed === null) {
       return;
@@ -1649,7 +1649,7 @@ function renderStreakControls(
       alert('Please enter "Colors" or "Count" to choose a streak type.');
       return;
     }
-    onCreate(trimmed, streakType);
+    await onCreate(trimmed, streakType);
   });
   addContainer.appendChild(addButton);
   row.appendChild(addContainer);
@@ -2590,6 +2590,8 @@ export async function setup(): Promise<void> {
           await moveLastUpdatedEntry(db, lastUpdated, previousName, result.selected);
           streakNames = result.names;
           selectedStreak = result.selected;
+          viewMode = 'full';
+          storeViewMode(viewMode);
           setHashStreak(selectedStreak);
           rerenderAll();
         } catch (error) {
@@ -2677,7 +2679,9 @@ export async function setup(): Promise<void> {
             }
           }
 
-          setHashStreak(selectedStreak);
+          viewMode = 'overview';
+          storeViewMode(viewMode);
+          setOverviewHash();
           rerenderAll();
         } catch (error) {
           console.error('Failed to delete streak', error);

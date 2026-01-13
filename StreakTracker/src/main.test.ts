@@ -694,8 +694,8 @@ test('deleting the last streak resets to a fresh default streak', async () => {
     deleteButton.click();
     await flushAsyncOperations();
 
-    await waitForCondition(() => window.location.hash === '#My%20Streak');
-    expect(window.location.hash).toBe('#My%20Streak');
+    await waitForCondition(() => window.location.hash === '#overview', 60);
+    expect(window.location.hash).toBe('#overview');
 
     openOverview();
     await flushAsyncOperations();
