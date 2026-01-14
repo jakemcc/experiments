@@ -24,7 +24,6 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: |
-            Commitment/package-lock.json
             StreakTracker/package-lock.json
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -48,11 +47,6 @@ jobs:
       - name: Test packing app
         working-directory: packing
         run: clojure -M:test
-      - name: Build Commitment app
-        working-directory: Commitment
-        run: |
-          npm ci
-          npm run build
       - name: Build StreakTracker app
         working-directory: StreakTracker
         run: |
@@ -60,10 +54,8 @@ jobs:
           npm run build
       - name: Prepare site
         run: |
-          mkdir -p site/Commitment site/StreakTracker site/Counter site/Packing
+          mkdir -p site/StreakTracker site/Counter site/Packing
           cp Counter/* site/Counter
-          cp Commitment/index.html site/Commitment/
-          cp -r Commitment/dist site/Commitment/
           cp StreakTracker/index.html site/StreakTracker/
           cp -r StreakTracker/dist site/StreakTracker/
           cp -r packing/src/packing/* site/Packing/

@@ -6,35 +6,27 @@ help: ## Show this help.
 	 sort | \
 	 awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: test test-packing test-commitment test-streaktracker build build-packing build-commitment build-streaktracker prepare-site clean
+.PHONY: test test-packing test-streaktracker build build-packing build-streaktracker prepare-site clean
 
-test: test-packing test-commitment test-streaktracker ## Run all tests across projects.
+test: test-packing test-streaktracker ## Run all tests across projects.
 
 test-packing:
 	$(MAKE) -C packing test
 
-test-commitment:
-	$(MAKE) -C Commitment test
-
 test-streaktracker:
 	$(MAKE) -C StreakTracker test
 
-build: clean build-packing build-commitment build-streaktracker prepare-site ## Build all projects and assemble site/ artifacts (no tests).
+build: clean build-packing build-streaktracker prepare-site ## Build all projects and assemble site/ artifacts (no tests).
 
 build-packing:
 	$(MAKE) -C packing build
-
-build-commitment:
-	cd Commitment && npm run build
 
 build-streaktracker:
 	cd StreakTracker && npm run build
 
 prepare-site:
-	mkdir -p site/Commitment site/StreakTracker site/Counter
+	mkdir -p site/StreakTracker site/Counter
 	cp Counter/* site/Counter
-	cp Commitment/index.html site/Commitment/
-	cp -r Commitment/dist site/Commitment/
 	cp StreakTracker/index.html site/StreakTracker/
 	cp -r StreakTracker/dist site/StreakTracker/
 	cp index.html site/index.html
@@ -59,7 +51,6 @@ watch: ## Watch sources and rerun `make test build` on changes (requires watchex
 		--ignore '**/dist' \
 		--ignore '**/node_modules' \
 		--ignore '.git' \
-		--watch Commitment \
 		--watch StreakTracker \
 		--watch packing \
 		--watch Counter \
