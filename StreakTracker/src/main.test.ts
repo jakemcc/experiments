@@ -424,6 +424,25 @@ test('renaming to an existing streak name is blocked', async () => {
   }
 });
 
+test('color settings omit orange from available selections', async () => {
+  await setupWithStreak();
+
+  const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+  settingsButton.click();
+  await flushAsyncOperations();
+
+  const greenSelect = document.getElementById('streak-color-select-green') as HTMLSelectElement;
+  const redSelect = document.getElementById('streak-color-select-red') as HTMLSelectElement;
+  const blueSelect = document.getElementById('streak-color-select-blue') as HTMLSelectElement;
+
+  const getValues = (select: HTMLSelectElement) =>
+    Array.from(select.options).map((option) => option.value);
+
+  expect(getValues(greenSelect)).not.toContain('orange');
+  expect(getValues(redSelect)).not.toContain('orange');
+  expect(getValues(blueSelect)).not.toContain('orange');
+});
+
 test('color settings rename labels and show swatches in stats', async () => {
   await setupWithStreak();
 
@@ -443,7 +462,7 @@ test('color settings rename labels and show swatches in stats', async () => {
   blueInput.value = 'Azure';
   greenSelect.value = 'amber';
   redSelect.value = 'purple';
-  blueSelect.value = 'orange';
+  blueSelect.value = 'green';
 
   const saveButton = document.querySelector('.streak-settings__save') as HTMLButtonElement;
   saveButton.click();
@@ -468,7 +487,7 @@ test('color settings rename labels and show swatches in stats', async () => {
 
   expect(document.querySelectorAll('.stats-swatch--amber').length).toBe(1);
   expect(document.querySelectorAll('.stats-swatch--purple').length).toBe(1);
-  expect(document.querySelectorAll('.stats-swatch--orange').length).toBe(1);
+  expect(document.querySelectorAll('.stats-swatch--green').length).toBe(1);
 });
 
 test('changing a color selection updates existing day colors', async () => {
@@ -1414,7 +1433,7 @@ test('overview mode omits type label and shows color legend', async () => {
     blueInput.value = 'Azure';
     greenSelect.value = 'amber';
     redSelect.value = 'purple';
-    blueSelect.value = 'orange';
+    blueSelect.value = 'green';
 
     const saveButton = document.querySelector('.streak-settings__save') as HTMLButtonElement;
     saveButton.click();
@@ -1437,7 +1456,7 @@ test('overview mode omits type label and shows color legend', async () => {
     expect(legend.querySelectorAll('.overview-legend__swatch').length).toBe(3);
     expect(legend.querySelectorAll('.overview-legend__swatch--amber').length).toBe(1);
     expect(legend.querySelectorAll('.overview-legend__swatch--purple').length).toBe(1);
-    expect(legend.querySelectorAll('.overview-legend__swatch--orange').length).toBe(1);
+    expect(legend.querySelectorAll('.overview-legend__swatch--green').length).toBe(1);
   } finally {
     restoreDate();
   }

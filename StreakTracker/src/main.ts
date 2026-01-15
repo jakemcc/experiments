@@ -25,7 +25,7 @@ type StreakType = 'color' | 'count';
 type ViewMode = 'full' | 'overview';
 type CountZeroStartMode = 'first' | 'today' | 'custom';
 type ColorLabelKey = 'red' | 'green' | 'blue';
-type ColorOption = 'red' | 'green' | 'blue' | 'amber' | 'orange' | 'purple';
+type ColorOption = 'red' | 'green' | 'blue' | 'amber' | 'purple';
 type ColorLabels = {
   red?: string;
   green?: string;
@@ -77,7 +77,7 @@ const DEFAULT_COLOR_SELECTIONS: ColorSelectionSet = {
   green: 'green',
   blue: 'blue',
 };
-const COLOR_OPTIONS: ColorOption[] = ['red', 'green', 'blue', 'amber', 'orange', 'purple'];
+const COLOR_OPTIONS: ColorOption[] = ['red', 'green', 'blue', 'amber', 'purple'];
 
 export function cycleColorState(state: DayState): DayState {
   return ((state + 1) % 4) as DayState;
@@ -204,7 +204,6 @@ function isColorOption(value: unknown): value is ColorOption {
     value === 'green' ||
     value === 'blue' ||
     value === 'amber' ||
-    value === 'orange' ||
     value === 'purple'
   );
 }
