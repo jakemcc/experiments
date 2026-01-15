@@ -434,10 +434,16 @@ test('color settings rename labels and show swatches in stats', async () => {
   const greenInput = document.getElementById('streak-color-label-green') as HTMLInputElement;
   const redInput = document.getElementById('streak-color-label-red') as HTMLInputElement;
   const blueInput = document.getElementById('streak-color-label-blue') as HTMLInputElement;
+  const greenSelect = document.getElementById('streak-color-select-green') as HTMLSelectElement;
+  const redSelect = document.getElementById('streak-color-select-red') as HTMLSelectElement;
+  const blueSelect = document.getElementById('streak-color-select-blue') as HTMLSelectElement;
 
   greenInput.value = 'Emerald';
   redInput.value = 'Ruby';
   blueInput.value = 'Azure';
+  greenSelect.value = 'amber';
+  redSelect.value = 'purple';
+  blueSelect.value = 'orange';
 
   const saveButton = document.querySelector('.streak-settings__save') as HTMLButtonElement;
   saveButton.click();
@@ -460,9 +466,33 @@ test('color settings rename labels and show swatches in stats', async () => {
   expect(stats.textContent).toContain('Azure days');
   expect(stats.textContent).toContain('Longest Emerald or Azure streak');
 
-  expect(document.querySelectorAll('.stats-swatch--green').length).toBe(1);
-  expect(document.querySelectorAll('.stats-swatch--red').length).toBe(1);
-  expect(document.querySelectorAll('.stats-swatch--blue').length).toBe(1);
+  expect(document.querySelectorAll('.stats-swatch--amber').length).toBe(1);
+  expect(document.querySelectorAll('.stats-swatch--purple').length).toBe(1);
+  expect(document.querySelectorAll('.stats-swatch--orange').length).toBe(1);
+});
+
+test('changing a color selection updates existing day colors', async () => {
+  await setupWithStreak();
+
+  const dayOne = getDayCell('1');
+  dayOne.click();
+  await flushAsyncOperations();
+
+  const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+  settingsButton.click();
+  await flushAsyncOperations();
+
+  const redSelect = document.getElementById('streak-color-select-red') as HTMLSelectElement;
+  redSelect.value = 'purple';
+
+  const saveButton = document.querySelector('.streak-settings__save') as HTMLButtonElement;
+  saveButton.click();
+  await flushAsyncOperations();
+
+  await waitForCondition(() => getDayCell('1').classList.contains('purple'));
+  const updatedCell = getDayCell('1');
+  expect(updatedCell.classList.contains('purple')).toBe(true);
+  expect(updatedCell.classList.contains('red')).toBe(false);
 });
 
 test('export downloads streak data as JSON', async () => {
@@ -475,11 +505,21 @@ test('export downloads streak data as JSON', async () => {
     dayOne.click();
     await flushAsyncOperations();
 
-  const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
-  settingsButton.click();
-  await flushAsyncOperations();
+    const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+    settingsButton.click();
+    await flushAsyncOperations();
 
-  await waitForCondition(() => Boolean(document.querySelector('.data-export')));
+    const redSelect = document.getElementById('streak-color-select-red') as HTMLSelectElement;
+    redSelect.value = 'purple';
+
+    const saveButton = document.querySelector('.streak-settings__save') as HTMLButtonElement;
+    saveButton.click();
+    await flushAsyncOperations();
+
+    settingsButton.click();
+    await flushAsyncOperations();
+
+    await waitForCondition(() => Boolean(document.querySelector('.data-export')));
     const exportButton = document.querySelector('.data-export') as HTMLButtonElement;
     exportButton.click();
     await flushAsyncOperations();
@@ -493,6 +533,9 @@ test('export downloads streak data as JSON', async () => {
     expect(data.names).toContain('My Streak');
     expect(data.types).toEqual(
       expect.arrayContaining([['My Streak', STREAK_TYPES.Color]]),
+    );
+    expect(data.settings).toEqual(
+      expect.arrayContaining([['My Streak', { colorSelections: { red: 'purple' } }]]),
     );
     expect(data.dayStates).toEqual(
       expect.arrayContaining([[`${encodeURIComponent('My Streak')}::2024-4-1`, 1]]),
@@ -1362,10 +1405,16 @@ test('overview mode omits type label and shows color legend', async () => {
     const greenInput = document.getElementById('streak-color-label-green') as HTMLInputElement;
     const redInput = document.getElementById('streak-color-label-red') as HTMLInputElement;
     const blueInput = document.getElementById('streak-color-label-blue') as HTMLInputElement;
+    const greenSelect = document.getElementById('streak-color-select-green') as HTMLSelectElement;
+    const redSelect = document.getElementById('streak-color-select-red') as HTMLSelectElement;
+    const blueSelect = document.getElementById('streak-color-select-blue') as HTMLSelectElement;
 
     greenInput.value = 'Emerald';
     redInput.value = 'Ruby';
     blueInput.value = 'Azure';
+    greenSelect.value = 'amber';
+    redSelect.value = 'purple';
+    blueSelect.value = 'orange';
 
     const saveButton = document.querySelector('.streak-settings__save') as HTMLButtonElement;
     saveButton.click();
@@ -1386,9 +1435,9 @@ test('overview mode omits type label and shows color legend', async () => {
     expect(legend.textContent).toContain('Ruby');
     expect(legend.textContent).toContain('Azure');
     expect(legend.querySelectorAll('.overview-legend__swatch').length).toBe(3);
-    expect(legend.querySelectorAll('.overview-legend__swatch--red').length).toBe(1);
-    expect(legend.querySelectorAll('.overview-legend__swatch--green').length).toBe(1);
-    expect(legend.querySelectorAll('.overview-legend__swatch--blue').length).toBe(1);
+    expect(legend.querySelectorAll('.overview-legend__swatch--amber').length).toBe(1);
+    expect(legend.querySelectorAll('.overview-legend__swatch--purple').length).toBe(1);
+    expect(legend.querySelectorAll('.overview-legend__swatch--orange').length).toBe(1);
   } finally {
     restoreDate();
   }
@@ -1418,6 +1467,7 @@ test('overview settings modal omits streak-specific options', async () => {
 
   await waitForCondition(() => Boolean(document.querySelector('.data-import__input')));
   expect(document.getElementById('streak-color-label-green')).toBeNull();
+  expect(document.getElementById('streak-color-select-green')).toBeNull();
   expect(document.querySelector('input[name="count-zero-start"]')).toBeNull();
 });
 
@@ -1520,9 +1570,9 @@ test('import replaces existing streak data', async () => {
     version: 1,
     viewMode: 'full',
     names: ['Imported'],
-      types: [['Imported', STREAK_TYPES.Color]],
-      settings: [],
-      lastUpdated: [['Imported', 123]],
+    types: [['Imported', STREAK_TYPES.Color]],
+    settings: [['Imported', { colorSelections: { green: 'amber' } }]],
+    lastUpdated: [['Imported', 123]],
     dayStates: [[`${encodeURIComponent('Imported')}::2024-4-2`, 2]],
   };
   const file = new File([JSON.stringify(payload)], 'streak-tracker.json', {
@@ -1537,7 +1587,7 @@ test('import replaces existing streak data', async () => {
     await waitForCondition(() => Boolean(document.querySelector('.calendar')));
 
     const dayTwo = getDayCell('2');
-    expect(dayTwo.classList.contains('green')).toBe(true);
+    expect(dayTwo.classList.contains('amber')).toBe(true);
     const dayOneAfter = getDayCell('1');
     expect(dayOneAfter.classList.contains('red')).toBe(false);
   } finally {

@@ -127,6 +127,14 @@
       gap: 0.5rem;
       margin-bottom: 0.5rem;
     }
+    .streak-settings__color-row {
+      display: grid;
+      gap: 0.4rem;
+      margin-bottom: 0.6rem;
+    }
+    .streak-settings__color-row .streak-settings__label {
+      margin-bottom: 0;
+    }
     .streak-settings__date {
       margin-left: 1.6rem;
       margin-top: 0.4rem;
@@ -202,6 +210,24 @@
         radial-gradient(circle at 10px 10px, rgba(255, 255, 255, 0.55) 2px, transparent 3px),
         linear-gradient(135deg, #87cefa, #4fc3f7);
       background-size: 18px 18px;
+    }
+    .stats-swatch--amber {
+      background-image:
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.4) 0, rgba(255, 255, 255, 0.4) 6px, transparent 6px, transparent 12px),
+        linear-gradient(135deg, #fbbf24, #d97706);
+      background-size: 20px 20px;
+    }
+    .stats-swatch--orange {
+      background-image:
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.4) 0, rgba(255, 255, 255, 0.4) 5px, transparent 5px, transparent 10px),
+        linear-gradient(135deg, #fb923c, #ea580c);
+      background-size: 18px 18px;
+    }
+    .stats-swatch--purple {
+      background-image:
+        repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0, rgba(255, 255, 255, 0.4) 7px, transparent 7px, transparent 14px),
+        linear-gradient(160deg, #c084fc, #7c3aed);
+      background-size: 22px 22px;
     }
     .calendar {
       display: grid;
@@ -291,6 +317,24 @@
         linear-gradient(135deg, #87cefa, #4fc3f7);
       background-size: 18px 18px;
     }
+    .overview-legend__swatch--amber {
+      background-image:
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.4) 0, rgba(255, 255, 255, 0.4) 6px, transparent 6px, transparent 12px),
+        linear-gradient(135deg, #fbbf24, #d97706);
+      background-size: 20px 20px;
+    }
+    .overview-legend__swatch--orange {
+      background-image:
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.4) 0, rgba(255, 255, 255, 0.4) 5px, transparent 5px, transparent 10px),
+        linear-gradient(135deg, #fb923c, #ea580c);
+      background-size: 18px 18px;
+    }
+    .overview-legend__swatch--purple {
+      background-image:
+        repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0, rgba(255, 255, 255, 0.4) 7px, transparent 7px, transparent 14px),
+        linear-gradient(160deg, #c084fc, #7c3aed);
+      background-size: 22px 22px;
+    }
     .overview-days {
       display: grid;
       grid-template-columns: repeat(7, minmax(36px, 1fr));
@@ -347,8 +391,32 @@
         linear-gradient(135deg, #87cefa, #4fc3f7);
       background-size: 18px 18px;
     }
+    .overview-day.amber {
+      color: #fff;
+      background-image:
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.4) 0, rgba(255, 255, 255, 0.4) 6px, transparent 6px, transparent 12px),
+        linear-gradient(135deg, #fbbf24, #d97706);
+      background-size: 20px 20px;
+    }
+    .overview-day.orange {
+      color: #fff;
+      background-image:
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.4) 0, rgba(255, 255, 255, 0.4) 5px, transparent 5px, transparent 10px),
+        linear-gradient(135deg, #fb923c, #ea580c);
+      background-size: 18px 18px;
+    }
+    .overview-day.purple {
+      color: #fff;
+      background-image:
+        repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0, rgba(255, 255, 255, 0.4) 7px, transparent 7px, transparent 14px),
+        linear-gradient(160deg, #c084fc, #7c3aed);
+      background-size: 22px 22px;
+    }
     .overview-day.red .overview-day__label,
-    .overview-day.green .overview-day__label {
+    .overview-day.green .overview-day__label,
+    .overview-day.amber .overview-day__label,
+    .overview-day.orange .overview-day__label,
+    .overview-day.purple .overview-day__label {
       color: rgba(255, 255, 255, 0.9);
     }
     @media (max-width: 720px) {
@@ -431,6 +499,27 @@
         radial-gradient(circle at 10px 10px, rgba(255, 255, 255, 0.55) 2px, transparent 3px),
         linear-gradient(135deg, #87cefa, #4fc3f7);
       background-size: 18px 18px;
+    }
+    .day.amber {
+      color: #fff;
+      background-image:
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.4) 0, rgba(255, 255, 255, 0.4) 6px, transparent 6px, transparent 12px),
+        linear-gradient(135deg, #fbbf24, #d97706);
+      background-size: 20px 20px;
+    }
+    .day.orange {
+      color: #fff;
+      background-image:
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.4) 0, rgba(255, 255, 255, 0.4) 5px, transparent 5px, transparent 10px),
+        linear-gradient(135deg, #fb923c, #ea580c);
+      background-size: 18px 18px;
+    }
+    .day.purple {
+      color: #fff;
+      background-image:
+        repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0, rgba(255, 255, 255, 0.4) 7px, transparent 7px, transparent 14px),
+        linear-gradient(160deg, #c084fc, #7c3aed);
+      background-size: 22px 22px;
     }
   </style>
 </head>
