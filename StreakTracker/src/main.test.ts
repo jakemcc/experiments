@@ -1001,14 +1001,20 @@ test('count streak increments and clamps at zero', async () => {
 
     openOverview();
     await flushAsyncOperations();
-    await waitForCondition(() =>
-      Array.from(document.querySelectorAll('.overview-row')).some(
-        (el) => (el as HTMLElement).dataset.streak === 'Counts'
-      )
-    );
+    await waitForCondition(() => {
+      const row = document.querySelector('.overview-row[data-streak="Counts"]');
+      if (!row) {
+        return false;
+      }
+      return !row.querySelector('.overview-row__legend');
+    }, 60);
     const countButton = getOverviewStreakButton('Counts');
     countButton.click();
     await flushAsyncOperations();
+    await waitForCondition(
+      () => !!document.querySelector('.day[data-day="2"] .day-count__control--plus'),
+      60,
+    );
 
     const dayCell = getDayCell('1');
     const increment = dayCell.querySelector('.day-count__control--plus') as HTMLButtonElement;
