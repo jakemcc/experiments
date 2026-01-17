@@ -25,7 +25,8 @@ type StreakType = 'color' | 'count';
 type ViewMode = 'full' | 'overview';
 type CountZeroStartMode = 'first' | 'today' | 'custom';
 type ColorLabelKey = 'red' | 'green' | 'blue';
-type ColorOption = 'red' | 'green' | 'blue' | 'amber' | 'purple';
+type ColorOption = 'red' | 'green' | 'blue' | 'amber' | 'purple' | 'none';
+type ColorSwatchOption = Exclude<ColorOption, 'none'>;
 type ColorLabels = {
   red?: string;
   green?: string;
@@ -77,10 +78,31 @@ const DEFAULT_COLOR_SELECTIONS: ColorSelectionSet = {
   green: 'green',
   blue: 'blue',
 };
-const COLOR_OPTIONS: ColorOption[] = ['red', 'green', 'blue', 'amber', 'purple'];
+const COLOR_KEYS: ColorLabelKey[] = ['red', 'green', 'blue'];
+const COLOR_STATE_BY_KEY: Record<ColorLabelKey, DayState> = {
+  red: DAY_STATES.Red,
+  green: DAY_STATES.Green,
+  blue: DAY_STATES.Blue,
+};
+const DEFAULT_COLOR_STATES: DayState[] = [
+  DAY_STATES.Red,
+  DAY_STATES.Green,
+  DAY_STATES.Blue,
+];
+const COLOR_SWATCH_OPTIONS: ColorSwatchOption[] = ['red', 'green', 'blue', 'amber', 'purple'];
+const COLOR_SELECTION_OPTIONS: ColorOption[] = ['none', ...COLOR_SWATCH_OPTIONS];
 
-export function cycleColorState(state: DayState): DayState {
-  return ((state + 1) % 4) as DayState;
+export function cycleColorState(
+  state: DayState,
+  activeStates: DayState[] = DEFAULT_COLOR_STATES,
+): DayState {
+  if (activeStates.length === 0) {
+    return DAY_STATES.None;
+  }
+  const ordered = [DAY_STATES.None, ...activeStates];
+  const index = ordered.indexOf(state);
+  const nextIndex = index === -1 ? 1 : (index + 1) % ordered.length;
+  return ordered[nextIndex];
 }
 
 export function updateCountValue(current: number, delta: number): number {
@@ -175,18 +197,18 @@ function applyDayStateClass(
   state: DayState,
   selections: ColorSelectionSet,
 ): void {
-  COLOR_OPTIONS.forEach((color) => cell.classList.remove(color));
-  if (state === DAY_STATES.Red) {
+  COLOR_SWATCH_OPTIONS.forEach((color) => cell.classList.remove(color));
+  if (state === DAY_STATES.Red && selections.red !== 'none') {
     cell.classList.add(selections.red);
-  } else if (state === DAY_STATES.Green) {
+  } else if (state === DAY_STATES.Green && selections.green !== 'none') {
     cell.classList.add(selections.green);
-  } else if (state === DAY_STATES.Blue) {
+  } else if (state === DAY_STATES.Blue && selections.blue !== 'none') {
     cell.classList.add(selections.blue);
   }
 }
 
 type ColorStatLine = {
-  swatch?: ColorOption;
+  swatch?: ColorSwatchOption;
   text: string;
 };
 
@@ -204,7 +226,8 @@ function isColorOption(value: unknown): value is ColorOption {
     value === 'green' ||
     value === 'blue' ||
     value === 'amber' ||
-    value === 'purple'
+    value === 'purple' ||
+    value === 'none'
   );
 }
 
@@ -230,6 +253,14 @@ function getColorSelections(settings?: StreakSettings): ColorSelectionSet {
   };
 }
 
+function getActiveColorKeys(selections: ColorSelectionSet): ColorLabelKey[] {
+  return COLOR_KEYS.filter((key) => selections[key] !== 'none');
+}
+
+function getActiveColorStates(activeKeys: ColorLabelKey[]): DayState[] {
+  return activeKeys.map((key) => COLOR_STATE_BY_KEY[key]);
+}
+
 function hasCustomColorLabels(labels?: ColorLabels): boolean {
   return Boolean(labels?.green || labels?.red || labels?.blue);
 }
@@ -238,14 +269,31 @@ function hasCustomColorSelections(selections?: ColorSelections): boolean {
   return Boolean(selections?.green || selections?.red || selections?.blue);
 }
 
-function getColorStateLabel(state: DayState, labels: ColorLabelSet): string {
-  if (state === DAY_STATES.Red) {
+function formatLabelList(values: string[]): string {
+  if (values.length === 0) {
+    return '';
+  }
+  if (values.length === 1) {
+    return values[0];
+  }
+  if (values.length === 2) {
+    return `${values[0]} and ${values[1]}`;
+  }
+  return `${values.slice(0, -1).join(', ')}, and ${values[values.length - 1]}`;
+}
+
+function getColorStateLabel(
+  state: DayState,
+  labels: ColorLabelSet,
+  selections: ColorSelectionSet,
+): string {
+  if (state === DAY_STATES.Red && selections.red !== 'none') {
     return labels.red;
   }
-  if (state === DAY_STATES.Green) {
+  if (state === DAY_STATES.Green && selections.green !== 'none') {
     return labels.green;
   }
-  if (state === DAY_STATES.Blue) {
+  if (state === DAY_STATES.Blue && selections.blue !== 'none') {
     return labels.blue;
   }
   return 'empty';
@@ -268,6 +316,7 @@ function computeMonthStats(
   monthState: Map<number, DayState>,
   labels: ColorLabelSet,
   selections: ColorSelectionSet,
+  activeKeys: ColorLabelKey[],
 ): ColorStatLine[] {
   const daysInMonth = new Date(year, month, 0).getDate();
   let daysPassed = 0;
@@ -341,23 +390,23 @@ function computeMonthStats(
     }
   }
 
-  return [
-    {
-      swatch: selections.red,
-      text: `${labels.red} days: ${colorCounts.red}/${daysPassed}, Longest ${labels.red} streak: ${longestStreaks.red}`,
-    },
-    {
-      swatch: selections.green,
-      text: `${labels.green} days: ${colorCounts.green}/${daysPassed}, Longest ${labels.green} streak: ${longestStreaks.green}`,
-    },
-    {
-      swatch: selections.blue,
-      text: `${labels.blue} days: ${colorCounts.blue}/${daysPassed}, Longest ${labels.blue} streak: ${longestStreaks.blue}`,
-    },
-    {
+  const lines: ColorStatLine[] = [];
+  activeKeys.forEach((key) => {
+    const selection = selections[key];
+    if (selection === 'none') {
+      return;
+    }
+    lines.push({
+      swatch: selection,
+      text: `${labels[key]} days: ${colorCounts[key]}/${daysPassed}, Longest ${labels[key]} streak: ${longestStreaks[key]}`,
+    });
+  });
+  if (activeKeys.includes('green') && activeKeys.includes('blue')) {
+    lines.push({
       text: `Longest ${labels.green} or ${labels.blue} streak: ${longestGreenBlueStreak}`,
-    },
-  ];
+    });
+  }
+  return lines;
 }
 
 function renderColorStats(stats: HTMLElement, lines: ColorStatLine[]): void {
@@ -1842,7 +1891,7 @@ function openStreakSettingsModal(options: {
   streakName: string;
   streakType: StreakType;
   settings: StreakSettings | undefined;
-  onSave: (nextSettings: StreakSettings) => void;
+  onSave: (nextSettings: StreakSettings, disabledColors?: ColorLabelKey[]) => void;
   db: IDBDatabase;
 }): void {
   const existing = document.getElementById('streak-settings-modal');
@@ -2003,7 +2052,7 @@ function openStreakSettingsModal(options: {
       text.textContent = labelText;
       const select = document.createElement('select');
       select.id = `streak-color-select-${color}`;
-      COLOR_OPTIONS.forEach((option) => {
+      COLOR_SELECTION_OPTIONS.forEach((option) => {
         const optionEl = document.createElement('option');
         optionEl.value = option;
         optionEl.textContent = option.charAt(0).toUpperCase() + option.slice(1);
@@ -2068,6 +2117,24 @@ function openStreakSettingsModal(options: {
         normalizeColorSelection(redSelect.select.value) ?? DEFAULT_COLOR_SELECTIONS.red;
       const blueSelection =
         normalizeColorSelection(blueSelect.select.value) ?? DEFAULT_COLOR_SELECTIONS.blue;
+      const nextSelections: ColorSelectionSet = {
+        green: greenSelection,
+        red: redSelection,
+        blue: blueSelection,
+      };
+      const disabledKeys = COLOR_KEYS.filter(
+        (key) => selections[key] !== 'none' && nextSelections[key] === 'none',
+      );
+      if (disabledKeys.length > 0) {
+        const disabledLabels = disabledKeys.map((key) => labels[key]);
+        const labelList = formatLabelList(disabledLabels);
+        const confirmed = window.confirm(
+          `Disabling ${labelList} will clear all ${labelList} days for this streak. Continue?`,
+        );
+        if (!confirmed) {
+          return;
+        }
+      }
       if (greenSelection !== DEFAULT_COLOR_SELECTIONS.green) {
         selectionsForSave.green = greenSelection;
       }
@@ -2084,7 +2151,7 @@ function openStreakSettingsModal(options: {
       if (hasCustomColorSelections(selectionsForSave)) {
         nextSettings.colorSelections = selectionsForSave;
       }
-      options.onSave(nextSettings);
+      options.onSave(nextSettings, disabledKeys.length > 0 ? disabledKeys : undefined);
       closeModal();
     });
 
@@ -2237,18 +2304,19 @@ function renderOverview(
       legend.className = 'overview-row__legend';
       const labels = getColorLabels(streakSettings.get(streakName));
       const selections = getColorSelections(streakSettings.get(streakName));
-      ([
-        ['red', labels.red, selections.red],
-        ['green', labels.green, selections.green],
-        ['blue', labels.blue, selections.blue],
-      ] as const).forEach(([key, label, selection]) => {
+      const activeKeys = getActiveColorKeys(selections);
+      activeKeys.forEach((key) => {
+        const selection = selections[key];
+        if (selection === 'none') {
+          return;
+        }
         const item = document.createElement('span');
         item.className = 'overview-legend__item';
         const swatch = document.createElement('span');
         swatch.className = `overview-legend__swatch overview-legend__swatch--${selection}`;
         item.appendChild(swatch);
         const text = document.createElement('span');
-        text.textContent = label;
+        text.textContent = labels[key];
         item.appendChild(text);
         legend.appendChild(item);
       });
@@ -2273,18 +2341,19 @@ function renderOverview(
       if (streakType === STREAK_TYPES.Color) {
         const labels = getColorLabels(streakSettings.get(streakName));
         const selections = getColorSelections(streakSettings.get(streakName));
+        const activeStates = getActiveColorStates(getActiveColorKeys(selections));
         let state = stateMap.get(dateKey) ?? DAY_STATES.None;
         if (!Number.isFinite(state) || state < DAY_STATES.None || state > DAY_STATES.Blue) {
           state = DAY_STATES.None;
         }
         applyDayStateClass(cell, state as DayState, selections);
         const updateAriaLabel = () => {
-          const stateLabel = getColorStateLabel(state as DayState, labels);
+          const stateLabel = getColorStateLabel(state as DayState, labels, selections);
           cell.setAttribute('aria-label', `${streakName}, ${label}, ${stateLabel}`);
         };
         updateAriaLabel();
         cell.addEventListener('click', async () => {
-          state = cycleColorState(state as DayState);
+          state = cycleColorState(state as DayState, activeStates);
           applyDayStateClass(cell, state as DayState, selections);
           await persistDayValue({
             stateMap,
@@ -2422,11 +2491,25 @@ function renderCalendars(
       streakType === STREAK_TYPES.Color ? getColorLabels(streakSettings.get(streakName)) : null;
     const colorSelections =
       streakType === STREAK_TYPES.Color ? getColorSelections(streakSettings.get(streakName)) : null;
+    const activeColorKeys =
+      streakType === STREAK_TYPES.Color && colorSelections
+        ? getActiveColorKeys(colorSelections)
+        : [];
+    const activeColorStates =
+      streakType === STREAK_TYPES.Color ? getActiveColorStates(activeColorKeys) : [];
     const updateStats = () => {
       if (streakType === STREAK_TYPES.Color && colorLabels && colorSelections) {
         renderColorStats(
           stats,
-          computeMonthStats(now, year, month, monthState, colorLabels, colorSelections),
+          computeMonthStats(
+            now,
+            year,
+            month,
+            monthState,
+            colorLabels,
+            colorSelections,
+            activeColorKeys,
+          ),
         );
       } else {
         const values = buildCountValuesForMonth(stateMap, year, month, now, getCountZeroStartDate());
@@ -2447,7 +2530,7 @@ function renderCalendars(
           let state = monthState.get(value) ?? DAY_STATES.None;
           applyDayStateClass(cell, state, colorSelections);
           cell.addEventListener('click', async () => {
-            state = cycleColorState(state);
+            state = cycleColorState(state, activeColorStates);
             applyDayStateClass(cell, state, colorSelections);
             if (state === DAY_STATES.None) {
               monthState.delete(value);
@@ -2762,18 +2845,40 @@ export async function setup(): Promise<void> {
           streakType,
           settings: streakSettings.get(selectedStreak),
           db,
-          onSave: (nextSettings) => {
+          onSave: (nextSettings, disabledColors) => {
             void (async () => {
-              const shouldStore =
-                hasCountSettings(nextSettings) ||
-                hasCustomColorLabels(nextSettings.colorLabels) ||
-                hasCustomColorSelections(nextSettings.colorSelections);
-              if (!shouldStore) {
-                streakSettings.delete(selectedStreak);
-              } else {
-                streakSettings.set(selectedStreak, nextSettings);
-              }
               try {
+                const streakName = selectedStreak;
+                if (disabledColors && disabledColors.length > 0) {
+                  const stateMap = streakStates.get(streakName);
+                  if (stateMap) {
+                    const disabledStates = new Set(
+                      disabledColors.map((key) => COLOR_STATE_BY_KEY[key]),
+                    );
+                    const datesToRemove: string[] = [];
+                    stateMap.forEach((state, dateKey) => {
+                      if (disabledStates.has(state as DayState)) {
+                        datesToRemove.push(dateKey);
+                      }
+                    });
+                    datesToRemove.forEach((dateKey) => stateMap.delete(dateKey));
+                    for (const dateKey of datesToRemove) {
+                      await removeDayState(db, streakName, dateKey);
+                    }
+                    if (datesToRemove.length > 0) {
+                      await recordStreakActivity(db, lastUpdated, streakName);
+                    }
+                  }
+                }
+                const shouldStore =
+                  hasCountSettings(nextSettings) ||
+                  hasCustomColorLabels(nextSettings.colorLabels) ||
+                  hasCustomColorSelections(nextSettings.colorSelections);
+                if (!shouldStore) {
+                  streakSettings.delete(streakName);
+                } else {
+                  streakSettings.set(streakName, nextSettings);
+                }
                 await saveStreakSettings(db, streakSettings);
                 rerenderAll();
               } catch (error) {

@@ -514,6 +514,62 @@ test('changing a color selection updates existing day colors', async () => {
   expect(updatedCell.classList.contains('red')).toBe(false);
 });
 
+test('disabling a color clears its data and removes it from stats and legend', async () => {
+  const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
+  try {
+    await setupWithStreak();
+
+    const dayOne = getDayCell('1');
+    dayOne.click();
+    await flushAsyncOperations();
+    expect(dayOne.classList.contains('red')).toBe(true);
+
+    const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+    settingsButton.click();
+    await flushAsyncOperations();
+
+    const redSelect = document.getElementById('streak-color-select-red') as HTMLSelectElement;
+    expect(Array.from(redSelect.options).map((option) => option.value)).toContain('none');
+    redSelect.value = 'none';
+
+    const saveButton = document.querySelector('.streak-settings__save') as HTMLButtonElement;
+    saveButton.click();
+    await flushAsyncOperations();
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(confirmSpy.mock.calls[0]?.[0]).toMatch(/clear/i);
+
+    await waitForCondition(() => !getDayCell('1').classList.contains('red'));
+    const clearedCell = getDayCell('1');
+    expect(clearedCell.classList.contains('red')).toBe(false);
+
+    const dayTwo = getDayCell('2');
+    dayTwo.click();
+    await flushAsyncOperations();
+    expect(dayTwo.classList.contains('green')).toBe(true);
+    expect(dayTwo.classList.contains('red')).toBe(false);
+
+    const stats = document.querySelector('.stats') as HTMLElement;
+    expect(stats.textContent).not.toContain('Red days');
+    expect(stats.querySelectorAll('.stats-swatch').length).toBe(2);
+    expect(stats.querySelectorAll('.stats-swatch--red').length).toBe(0);
+
+    openOverview();
+    await flushAsyncOperations();
+    await waitForCondition(() => Boolean(document.querySelector('.overview-row__legend')));
+
+    const legend = document.querySelector('.overview-row__legend') as HTMLElement;
+    expect(legend.querySelectorAll('.overview-legend__swatch').length).toBe(2);
+    expect(legend.querySelectorAll('.overview-legend__swatch--red').length).toBe(0);
+
+    await setupWithStreak();
+    const reloadedCell = getDayCell('1');
+    expect(reloadedCell.classList.contains('red')).toBe(false);
+  } finally {
+    confirmSpy.mockRestore();
+  }
+});
+
 test('export downloads streak data as JSON', async () => {
   const restoreDate = mockDate('2024-04-10T12:00:00Z');
   const download = mockDownloadCapture();
