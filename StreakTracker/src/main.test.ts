@@ -1565,6 +1565,38 @@ test('overview mode hides per-streak actions', async () => {
   expect(document.querySelector('.streak-add__button')).not.toBeNull();
 });
 
+test('overview count streak renders count cells immediately after creation', async () => {
+  const restoreDate = mockDate('2024-03-20T12:00:00Z');
+  const promptSpy = jest
+    .spyOn(window, 'prompt')
+    .mockImplementationOnce(() => 'Counts')
+    .mockImplementationOnce(() => 'Count');
+  try {
+    await setupWithStreak();
+
+    const addButton = document.querySelector('.streak-add__button') as HTMLButtonElement;
+    addButton.click();
+
+    openOverview();
+
+    const todayKey = '2024-3-20';
+    const cell = getOverviewCell('Counts', todayKey);
+    const value = cell.querySelector('.overview-day__value');
+    expect(value).not.toBeNull();
+  } finally {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const types = await readStoredStreakTypes();
+      if (types.get('Counts') === STREAK_TYPES.Count) {
+        break;
+      }
+      await flushAsyncOperations();
+    }
+    await flushAsyncOperations();
+    promptSpy.mockRestore();
+    restoreDate();
+  }
+});
+
 test('overview mode increments count streak and persists', async () => {
   const restoreDate = mockDate('2024-03-20T12:00:00Z');
   const promptSpy = jest

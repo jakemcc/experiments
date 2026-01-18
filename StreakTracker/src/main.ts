@@ -2774,13 +2774,17 @@ export async function setup(): Promise<void> {
   bindRefreshHandlers();
 
   const ensureStreakExists = async (name: string, streakType?: StreakType) => {
+    let shouldSaveTypes = false;
+    if (streakType && streakTypes.get(name) !== streakType) {
+      streakTypes.set(name, streakType);
+      shouldSaveTypes = true;
+    }
     if (!streakNames.includes(name)) {
       streakNames = [...streakNames, name];
       streakStates.set(name, streakStates.get(name) ?? new Map());
       await saveStreakNames(db, streakNames);
     }
-    if (streakType && streakTypes.get(name) !== streakType) {
-      streakTypes.set(name, streakType);
+    if (shouldSaveTypes) {
       await saveStreakTypes(db, streakTypes);
     }
   };
