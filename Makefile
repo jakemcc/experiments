@@ -25,10 +25,11 @@ build-streaktracker:
 	cd StreakTracker && npm run build
 
 prepare-site:
-	mkdir -p site/StreakTracker site/Counter
+	mkdir -p site/StreakTracker site/Counter site/99-bottles
 	cp Counter/* site/Counter
 	cp StreakTracker/index.html site/StreakTracker/
 	cp -r StreakTracker/dist site/StreakTracker/
+	cp 99-bottles/index.html 99-bottles/state.js site/99-bottles/
 	cp index.html site/index.html
 
 clean: ## Remove built site artifacts.
@@ -54,6 +55,7 @@ watch: ## Watch sources and rerun `make test build` on changes (requires watchex
 		--watch StreakTracker \
 		--watch packing \
 		--watch Counter \
+		--watch 99-bottles \
 		--watch index.html \
 		--watch Makefile \
 		-- "make test build"
