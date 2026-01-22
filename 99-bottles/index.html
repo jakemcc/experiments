@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>99 Bottles</title>
+  <style>
+    :root {
+      color-scheme: only light;
+      --bg-top: #f4efe8;
+      --bg-bottom: #e5e1d8;
+      --ink: #1f1b16;
+      --muted: #b8b0a6;
+      --box: #f7f2ea;
+      --box-border: #c9c1b7;
+      --box-active: #f2d18a;
+      --box-active-ink: #1f1b16;
+      --box-next: #c9e7d8;
+      --box-next-ink: #13403c;
+      --shadow: rgba(26, 22, 18, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande", sans-serif;
+      background-image:
+        radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.65), transparent 55%),
+        radial-gradient(circle at 80% 10%, rgba(255, 255, 255, 0.45), transparent 45%),
+        linear-gradient(140deg, var(--bg-top), var(--bg-bottom));
+      color: var(--ink);
+    }
+
+    .wall {
+      padding: 24px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+      gap: 12px;
+    }
+
+    .box {
+      position: relative;
+      border: 2px solid var(--box-border);
+      border-radius: 14px;
+      background: var(--box);
+      color: var(--ink);
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 16px 0;
+      box-shadow: 0 8px 16px -12px var(--shadow);
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    }
+
+    .box.enabled {
+      border-color: #9fbfb1;
+      background: var(--box-next);
+      color: var(--box-next-ink);
+    }
+
+    .box.clicked {
+      background: var(--box-active);
+      border-color: #c1a56c;
+      color: var(--box-active-ink);
+      box-shadow: inset 0 0 0 2px rgba(31, 27, 22, 0.12);
+    }
+
+    .box:focus-visible {
+      outline: 3px solid #2f5d50;
+      outline-offset: 2px;
+    }
+
+    .box:not(:disabled):hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 22px -14px var(--shadow);
+    }
+
+    .box:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+      transform: none;
+    }
+
+    .confetti {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+    }
+
+    .confetti-piece {
+      position: absolute;
+      width: 6px;
+      height: 10px;
+      background: var(--confetti-color, #f2b705);
+      transform: translate(0, 0) rotate(0deg);
+      animation: confetti-burst 700ms ease-out forwards;
+    }
+
+    @keyframes confetti-burst {
+      0% {
+        transform: translate(0, 0) rotate(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(var(--tx), var(--ty)) rotate(var(--rot));
+        opacity: 0;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .wall {
+        padding: 18px;
+      }
+
+      .grid {
+        gap: 10px;
+        grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+      }
+
+      .box {
+        padding: 14px 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="wall">
+    <div class="grid" aria-live="polite"></div>
+  </main>
+
+  <script type="module">
+    import { applyAction } from './state.js';
+
+    const TOTAL = 99;
+    const colors = ['#f2b705', '#f27d72', '#7ac7c4', '#f6c2e8', '#8fb9ff', '#f2d479'];
+    const grid = document.querySelector('.grid');
+    const buttons = [];
+    let maxClicked = 0;
+
+    function render() {
+      buttons.forEach((button, idx) => {
+        const index = idx + 1;
+        const clicked = index <= maxClicked;
+        const enabled =
+          (index === maxClicked + 1 && maxClicked < TOTAL) ||
+          (index === maxClicked && maxClicked > 0);
+
+        button.classList.toggle('clicked', clicked);
+        button.classList.toggle('enabled', enabled && !clicked);
+        button.disabled = !enabled;
+        button.setAttribute('aria-pressed', clicked ? 'true' : 'false');
+      });
+    }
+
+    function burstConfetti(button) {
+      const burst = document.createElement('div');
+      burst.className = 'confetti';
+      const pieceCount = 14;
+
+      for (let i = 0; i < pieceCount; i += 1) {
+        const piece = document.createElement('span');
+        piece.className = 'confetti-piece';
+        const angle = (Math.PI * 2 * i) / pieceCount;
+        const distance = 18 + Math.random() * 22;
+        const tx = Math.cos(angle) * distance;
+        const ty = Math.sin(angle) * distance;
+
+        piece.style.setProperty('--tx', `${tx}px`);
+        piece.style.setProperty('--ty', `${ty}px`);
+        piece.style.setProperty('--rot', `${Math.random() * 300}deg`);
+        piece.style.setProperty('--confetti-color', colors[i % colors.length]);
+        burst.appendChild(piece);
+      }
+
+      button.appendChild(burst);
+      setTimeout(() => burst.remove(), 750);
+    }
+
+    function handleClick(index, button) {
+      const next = applyAction(maxClicked, index, TOTAL);
+      if (next === maxClicked) {
+        return;
+      }
+
+      const forward = next > maxClicked;
+      maxClicked = next;
+      render();
+
+      if (forward) {
+        burstConfetti(button);
+      }
+    }
+
+    for (let i = 1; i <= TOTAL; i += 1) {
+      const button = document.createElement('button');
+      button.className = 'box';
+      button.type = 'button';
+      button.dataset.index = String(i);
+      button.textContent = String(i);
+      button.addEventListener('click', () => handleClick(i, button));
+      grid.appendChild(button);
+      buttons.push(button);
+    }
+
+    render();
+  </script>
+</body>
+</html>
