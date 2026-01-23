@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { applyAction } from './state.js';
+import { applyAction, pickBlastProfile } from './state.js';
 
 test('clicking the next box increments maxClicked', () => {
   assert.equal(applyAction(0, 1, 99), 1);
@@ -26,4 +26,19 @@ test('cannot decrement below zero', () => {
 test('cannot increment past total', () => {
   assert.equal(applyAction(99, 100, 99), 99);
   assert.equal(applyAction(99, 99, 99), 98);
+});
+
+test('pickBlastProfile returns one of three even blast profiles', () => {
+  assert.deepEqual(pickBlastProfile(() => 0), {
+    pieceCount: 10,
+    radiusRange: [16, 24],
+  });
+  assert.deepEqual(pickBlastProfile(() => 0.4), {
+    pieceCount: 16,
+    radiusRange: [26, 34],
+  });
+  assert.deepEqual(pickBlastProfile(() => 0.9), {
+    pieceCount: 24,
+    radiusRange: [36, 44],
+  });
 });
