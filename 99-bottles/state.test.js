@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { applyAction, pickBlastProfile } from './state.js';
+import { applyAction, getSpecialConfettiKind, pickBlastProfile } from './state.js';
 
 test('clicking the next box increments maxClicked', () => {
   assert.equal(applyAction(0, 1, 99), 1);
@@ -41,4 +41,11 @@ test('pickBlastProfile returns one of three even blast profiles', () => {
     pieceCount: 24,
     radiusRange: [36, 44],
   });
+});
+
+test('getSpecialConfettiKind uses arm emoji only on multiples of five', () => {
+  assert.equal(getSpecialConfettiKind(1), 'default');
+  assert.equal(getSpecialConfettiKind(4), 'default');
+  assert.equal(getSpecialConfettiKind(5), 'arm-emoji');
+  assert.equal(getSpecialConfettiKind(10), 'arm-emoji');
 });

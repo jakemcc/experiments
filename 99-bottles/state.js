@@ -20,3 +20,11 @@ export function pickBlastProfile(randomFn = Math.random) {
   const index = Math.floor(randomFn() * BLAST_PROFILES.length);
   return BLAST_PROFILES[Math.min(index, BLAST_PROFILES.length - 1)];
 }
+
+export function getSpecialConfettiKind(blastNumber) {
+  if (blastNumber <= 0) {
+    return 'default';
+  }
+
+  return blastNumber % 5 === 0 ? 'arm-emoji' : 'default';
+}

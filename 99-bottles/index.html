@@ -106,6 +106,17 @@
       animation: confetti-burst 700ms ease-out forwards;
     }
 
+    .confetti-piece.emoji {
+      width: 70px;
+      height: 70px;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 64px;
+      filter: drop-shadow(0 6px 10px rgba(31, 27, 22, 0.2));
+    }
+
     @keyframes confetti-burst {
       0% {
         transform: translate(0, 0) rotate(0deg);
@@ -139,7 +150,7 @@
   </main>
 
   <script type="module">
-    import { applyAction, pickBlastProfile } from './state.js';
+    import { applyAction, getSpecialConfettiKind, pickBlastProfile } from './state.js';
 
     const TOTAL = 99;
     const colors = ['#f2b705', '#f27d72', '#7ac7c4', '#f6c2e8', '#8fb9ff', '#f2d479'];
@@ -162,24 +173,39 @@
       });
     }
 
-    function burstConfetti(button) {
+    function createConfettiPiece(kind, color) {
+      const piece = document.createElement('span');
+      piece.className = 'confetti-piece';
+      piece.style.setProperty('--confetti-color', color);
+
+      if (kind === 'arm-emoji') {
+        piece.classList.add('emoji');
+        piece.textContent = '💪';
+      }
+
+      return piece;
+    }
+
+    function burstConfetti(button, blastNumber) {
       const burst = document.createElement('div');
       burst.className = 'confetti';
       const { pieceCount, radiusRange } = pickBlastProfile();
       const [minRadius, maxRadius] = radiusRange;
+      const specialKind = getSpecialConfettiKind(blastNumber);
+      const isSpecial = specialKind !== 'default';
+      const burstCount = isSpecial ? Math.max(6, Math.round(pieceCount * 0.4)) : pieceCount;
 
-      for (let i = 0; i < pieceCount; i += 1) {
-        const piece = document.createElement('span');
-        piece.className = 'confetti-piece';
-        const angle = (Math.PI * 2 * i) / pieceCount;
+      for (let i = 0; i < burstCount; i += 1) {
+        const color = colors[i % colors.length];
+        const piece = createConfettiPiece(specialKind, color);
+        const angle = (Math.PI * 2 * i) / burstCount;
         const distance = minRadius + Math.random() * (maxRadius - minRadius);
         const tx = Math.cos(angle) * distance;
         const ty = Math.sin(angle) * distance;
 
         piece.style.setProperty('--tx', `${tx}px`);
         piece.style.setProperty('--ty', `${ty}px`);
-        piece.style.setProperty('--rot', `${Math.random() * 300}deg`);
-        piece.style.setProperty('--confetti-color', colors[i % colors.length]);
+        piece.style.setProperty('--rot', isSpecial ? '0deg' : `${Math.random() * 300}deg`);
         burst.appendChild(piece);
       }
 
@@ -198,7 +224,7 @@
       render();
 
       if (forward) {
-        burstConfetti(button);
+        burstConfetti(button, next);
       }
     }
 
