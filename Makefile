@@ -28,6 +28,9 @@ prepare-site:
 	mkdir -p site/StreakTracker site/Counter site/99-bottles
 	cp Counter/* site/Counter
 	cp StreakTracker/index.html site/StreakTracker/
+	cp StreakTracker/manifest.webmanifest site/StreakTracker/
+	cp StreakTracker/service-worker.js site/StreakTracker/
+	cp -r StreakTracker/icons site/StreakTracker/
 	cp -r StreakTracker/dist site/StreakTracker/
 	cp 99-bottles/index.html 99-bottles/state.js site/99-bottles/
 	cp index.html site/index.html
