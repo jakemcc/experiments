@@ -2581,6 +2581,12 @@ function renderCalendars(
             } else {
               monthCounts.set(value, count);
             }
+            if (count === 0) {
+              stateMap.delete(dateKey);
+            } else {
+              stateMap.set(dateKey, count);
+            }
+            updateStats();
             await persistDayValue({
               stateMap,
               dateKey,
@@ -2592,7 +2598,6 @@ function renderCalendars(
               onRemoveError: (error) => console.error('Failed to remove count state', error),
               onRecordError: (error) => console.error('Failed to update streak activity', error),
             });
-            updateStats();
           };
 
           incrementButton.addEventListener('click', (event) => {
