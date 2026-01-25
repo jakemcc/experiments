@@ -1267,19 +1267,30 @@ test('count streak stats start from custom date', async () => {
     saveButton.click();
     await flushAsyncOperations();
 
-    const stats = Array.from(document.querySelectorAll('.stats')).find(
-      (element) => !(element as HTMLElement).classList.contains('stats--overall')
-    ) as HTMLParagraphElement;
-    const overallStats = document.querySelector('.stats--overall') as HTMLParagraphElement;
     const expectedStats = 'Total: 4 Median: 1 Mean: 1.33';
     const expectedOverall = 'Median: 1 Mean: 1.33';
 
+    const getStatsText = () => {
+      const stats = Array.from(document.querySelectorAll('.stats')).find(
+        (element) => !(element as HTMLElement).classList.contains('stats--overall')
+      ) as HTMLParagraphElement | undefined;
+      const overallStats = document.querySelector('.stats--overall') as HTMLParagraphElement | null;
+      return {
+        statsText: stats?.textContent ?? '',
+        overallText: overallStats?.textContent ?? '',
+      };
+    };
+
     await waitForCondition(
-      () => stats.textContent === expectedStats && overallStats.textContent === expectedOverall,
+      () => {
+        const { statsText, overallText } = getStatsText();
+        return statsText === expectedStats && overallText === expectedOverall;
+      },
       60,
     );
-    expect(stats.textContent).toBe(expectedStats);
-    expect(overallStats.textContent).toBe(expectedOverall);
+    const { statsText, overallText } = getStatsText();
+    expect(statsText).toBe(expectedStats);
+    expect(overallText).toBe(expectedOverall);
   } finally {
     promptSpy.mockRestore();
     restoreDate();
