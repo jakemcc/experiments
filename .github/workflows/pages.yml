@@ -57,6 +57,8 @@ jobs:
           mkdir -p site/StreakTracker site/Counter site/Packing site/99-bottles
           cp Counter/* site/Counter
           cp StreakTracker/index.html site/StreakTracker/
+          cp StreakTracker/manifest.webmanifest site/StreakTracker/
+          cp StreakTracker/service-worker.js site/StreakTracker/
           cp -r StreakTracker/dist site/StreakTracker/
           cp -r packing/src/packing/* site/Packing/
           cp 99-bottles/index.html 99-bottles/state.js site/99-bottles/
