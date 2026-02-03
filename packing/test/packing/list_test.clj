@@ -58,3 +58,5 @@
              :items [(pl/i :uncategorized "mystery item")]}]
            grouped))))
 
+(deftest global-items-include-trim-nails
+  (is (contains? pl/global-items (pl/a "trim nails"))))

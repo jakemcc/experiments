@@ -13,7 +13,8 @@
 (defn q [s yes-answer] {:type :question :value s :yes yes-answer})
 
 (def always #{::accessories ::bathroom ::clothes})
-(def global-items #{(a "Hold mail")})
+(def global-items #{(a "Hold mail")
+                    (a "trim nails")})
 
 ;;!zprint {:format :skip}
 (def packing-lists
@@ -71,7 +72,6 @@
                 (a "refill chalk")
                 (i :climbing-gear "climbing shoes")
                 (i :climbing-gear "electrolytes")
-                (a "trim nails")
                 (a "download offline google map")
                 (a "mountain project download")}
 
