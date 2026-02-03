@@ -345,8 +345,6 @@ function computeMonthStats(
     blue: 0,
   };
 
-  let currentGreenBlueStreak = 0;
-  let longestGreenBlueStreak = 0;
   for (let day = 1; day <= daysPassed; day++) {
     const state = monthState.get(day) ?? DAY_STATES.None;
     if (state === DAY_STATES.Red) {
@@ -354,7 +352,6 @@ function computeMonthStats(
       currentStreaks.red += 1;
       currentStreaks.green = 0;
       currentStreaks.blue = 0;
-      currentGreenBlueStreak = 0;
       if (currentStreaks.red > longestStreaks.red) {
         longestStreaks.red = currentStreaks.red;
       }
@@ -363,10 +360,6 @@ function computeMonthStats(
       currentStreaks.green += 1;
       currentStreaks.red = 0;
       currentStreaks.blue = 0;
-      currentGreenBlueStreak += 1;
-      if (currentGreenBlueStreak > longestGreenBlueStreak) {
-        longestGreenBlueStreak = currentGreenBlueStreak;
-      }
       if (currentStreaks.green > longestStreaks.green) {
         longestStreaks.green = currentStreaks.green;
       }
@@ -375,10 +368,6 @@ function computeMonthStats(
       currentStreaks.blue += 1;
       currentStreaks.red = 0;
       currentStreaks.green = 0;
-      currentGreenBlueStreak += 1;
-      if (currentGreenBlueStreak > longestGreenBlueStreak) {
-        longestGreenBlueStreak = currentGreenBlueStreak;
-      }
       if (currentStreaks.blue > longestStreaks.blue) {
         longestStreaks.blue = currentStreaks.blue;
       }
@@ -386,7 +375,6 @@ function computeMonthStats(
       currentStreaks.red = 0;
       currentStreaks.green = 0;
       currentStreaks.blue = 0;
-      currentGreenBlueStreak = 0;
     }
   }
 
@@ -401,11 +389,6 @@ function computeMonthStats(
       text: `${labels[key]} days: ${colorCounts[key]}/${daysPassed}, Longest ${labels[key]} streak: ${longestStreaks[key]}`,
     });
   });
-  if (activeKeys.includes('green') && activeKeys.includes('blue')) {
-    lines.push({
-      text: `Longest ${labels.green} or ${labels.blue} streak: ${longestGreenBlueStreak}`,
-    });
-  }
   return lines;
 }
 

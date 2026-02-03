@@ -474,8 +474,7 @@ test('color settings rename labels and show swatches in stats', async () => {
     return (
       text.includes('Emerald days') &&
       text.includes('Ruby days') &&
-      text.includes('Azure days') &&
-      text.includes('Longest Emerald or Azure streak')
+      text.includes('Azure days')
     );
   });
 
@@ -483,7 +482,6 @@ test('color settings rename labels and show swatches in stats', async () => {
   expect(stats.textContent).toContain('Emerald days');
   expect(stats.textContent).toContain('Ruby days');
   expect(stats.textContent).toContain('Azure days');
-  expect(stats.textContent).toContain('Longest Emerald or Azure streak');
 
   expect(document.querySelectorAll('.stats-swatch--amber').length).toBe(1);
   expect(document.querySelectorAll('.stats-swatch--purple').length).toBe(1);
@@ -906,7 +904,6 @@ test('stats update for all colors and streaks', async () => {
     `Red days: 0/${daysPassed}, Longest Red streak: 0`,
     `Green days: 0/${daysPassed}, Longest Green streak: 0`,
     `Blue days: 0/${daysPassed}, Longest Blue streak: 0`,
-    'Longest Green or Blue streak: 0',
   ]);
   const day1 = getDayCell('1');
   day1.click();
@@ -915,7 +912,6 @@ test('stats update for all colors and streaks', async () => {
     `Red days: 1/${daysPassed}, Longest Red streak: 1`,
     `Green days: 0/${daysPassed}, Longest Green streak: 0`,
     `Blue days: 0/${daysPassed}, Longest Blue streak: 0`,
-    'Longest Green or Blue streak: 0',
   ]);
   day1.click();
   await flushAsyncOperations();
@@ -923,7 +919,6 @@ test('stats update for all colors and streaks', async () => {
     `Red days: 0/${daysPassed}, Longest Red streak: 0`,
     `Green days: 1/${daysPassed}, Longest Green streak: 1`,
     `Blue days: 0/${daysPassed}, Longest Blue streak: 0`,
-    'Longest Green or Blue streak: 1',
   ]);
   day1.click();
   await flushAsyncOperations();
@@ -931,7 +926,6 @@ test('stats update for all colors and streaks', async () => {
     `Red days: 0/${daysPassed}, Longest Red streak: 0`,
     `Green days: 0/${daysPassed}, Longest Green streak: 0`,
     `Blue days: 1/${daysPassed}, Longest Blue streak: 1`,
-    'Longest Green or Blue streak: 1',
   ]);
   restoreDate();
 });
@@ -958,7 +952,7 @@ test('focus refresh updates date-dependent stats', async () => {
   restoreNext();
 });
 
-test('longest green or blue streak spans both colors', async () => {
+test('color stats omit combined green or blue streak line', async () => {
   const restoreDate = mockDate('2023-06-15T00:00:00Z');
   try {
     await setupWithStreak();
@@ -997,7 +991,6 @@ test('longest green or blue streak spans both colors', async () => {
       `Red days: 0/${daysPassed}, Longest Red streak: 0`,
       `Green days: 3/${daysPassed}, Longest Green streak: 2`,
       `Blue days: 1/${daysPassed}, Longest Blue streak: 1`,
-      'Longest Green or Blue streak: 4',
     ];
     const getStatLines = () =>
       Array.from(stats.querySelectorAll('.stats-line')).map((line) => line.textContent ?? '');
