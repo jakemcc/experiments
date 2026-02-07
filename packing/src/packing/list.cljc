@@ -82,6 +82,7 @@
                 (i :bathroom-health "Benadryl")
                 (i :bathroom-health "Zyrtec")
                 (i :bathroom-health "Allegra (Fexofenadine)")
+                (i :bathroom-health "eye drops")
                 (i :bathroom-health "Pepcid/Zantac/Famotidine")
                 (i :bathroom-health "Auvi-Q injector")
                 (i :bathroom-health "inhaler")
