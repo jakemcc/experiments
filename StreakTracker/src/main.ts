@@ -1870,6 +1870,186 @@ function buildDataToolsSection(
   return dataFieldset;
 }
 
+function haveSameUniqueNames(left: string[], right: string[]): boolean {
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  if (left.length !== leftSet.size || right.length !== rightSet.size) {
+    return false;
+  }
+  if (leftSet.size !== rightSet.size) {
+    return false;
+  }
+  for (const name of leftSet) {
+    if (!rightSet.has(name)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function moveNameAtIndex(names: string[], from: number, to: number): string[] {
+  if (from < 0 || to < 0 || from >= names.length || to >= names.length || from === to) {
+    return names;
+  }
+  const next = [...names];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
+function buildReorderSection(options: {
+  streakNames: string[];
+  onSave: (nextNames: string[]) => Promise<void>;
+  onCancel: () => void;
+}): HTMLFieldSetElement {
+  const fieldset = document.createElement('fieldset');
+  fieldset.className = 'streak-settings__fieldset streak-order';
+  const legend = document.createElement('legend');
+  legend.textContent = 'Reorder streaks';
+  fieldset.appendChild(legend);
+
+  const note = document.createElement('p');
+  note.className = 'streak-order__note';
+  note.textContent = 'Drag rows or use arrows, then save.';
+  fieldset.appendChild(note);
+
+  const list = document.createElement('ul');
+  list.className = 'streak-order__list';
+  fieldset.appendChild(list);
+
+  const actions = document.createElement('div');
+  actions.className = 'streak-order__actions';
+  fieldset.appendChild(actions);
+
+  let savedOrder = [...options.streakNames];
+  let draftOrder = [...savedOrder];
+  let dragName: string | null = null;
+
+  const renderList = () => {
+    list.innerHTML = '';
+    draftOrder.forEach((name, index) => {
+      const item = document.createElement('li');
+      item.className = 'streak-order__item';
+      item.dataset.streak = name;
+      item.draggable = true;
+
+      const handle = document.createElement('span');
+      handle.className = 'streak-order__handle';
+      handle.textContent = '::';
+      handle.setAttribute('aria-hidden', 'true');
+      item.appendChild(handle);
+
+      const label = document.createElement('span');
+      label.className = 'streak-order__name';
+      label.textContent = name;
+      item.appendChild(label);
+
+      const controls = document.createElement('div');
+      controls.className = 'streak-order__item-actions';
+
+      const upButton = document.createElement('button');
+      upButton.type = 'button';
+      upButton.className = 'streak-order__move-up';
+      upButton.textContent = 'Up';
+      upButton.disabled = index === 0;
+      upButton.setAttribute('aria-label', `Move ${name} up`);
+      upButton.addEventListener('click', () => {
+        draftOrder = moveNameAtIndex(draftOrder, index, index - 1);
+        renderList();
+      });
+      controls.appendChild(upButton);
+
+      const downButton = document.createElement('button');
+      downButton.type = 'button';
+      downButton.className = 'streak-order__move-down';
+      downButton.textContent = 'Down';
+      downButton.disabled = index === draftOrder.length - 1;
+      downButton.setAttribute('aria-label', `Move ${name} down`);
+      downButton.addEventListener('click', () => {
+        draftOrder = moveNameAtIndex(draftOrder, index, index + 1);
+        renderList();
+      });
+      controls.appendChild(downButton);
+
+      item.appendChild(controls);
+
+      item.addEventListener('dragstart', (event) => {
+        dragName = name;
+        item.classList.add('streak-order__item--dragging');
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', name);
+        }
+      });
+
+      item.addEventListener('dragend', () => {
+        item.classList.remove('streak-order__item--dragging');
+        dragName = null;
+      });
+
+      item.addEventListener('dragover', (event) => {
+        event.preventDefault();
+      });
+
+      item.addEventListener('drop', (event) => {
+        event.preventDefault();
+        const dragged =
+          event.dataTransfer?.getData('text/plain')?.trim() || dragName || '';
+        if (!dragged || dragged === name) {
+          return;
+        }
+        const fromIndex = draftOrder.indexOf(dragged);
+        const toIndex = draftOrder.indexOf(name);
+        if (fromIndex === -1 || toIndex === -1) {
+          return;
+        }
+        draftOrder = moveNameAtIndex(draftOrder, fromIndex, toIndex);
+        renderList();
+      });
+
+      list.appendChild(item);
+    });
+  };
+
+  const cancelButton = document.createElement('button');
+  cancelButton.type = 'button';
+  cancelButton.className = 'streak-order__cancel';
+  cancelButton.textContent = 'Cancel';
+  cancelButton.addEventListener('click', () => {
+    draftOrder = [...savedOrder];
+    options.onCancel();
+  });
+  actions.appendChild(cancelButton);
+
+  const saveButton = document.createElement('button');
+  saveButton.type = 'button';
+  saveButton.className = 'streak-order__save';
+  saveButton.textContent = 'Save';
+  saveButton.addEventListener('click', () => {
+    void (async () => {
+      if (!haveSameUniqueNames(draftOrder, savedOrder)) {
+        alert('Unable to save streak order because the list changed.');
+        return;
+      }
+      saveButton.disabled = true;
+      try {
+        await options.onSave(draftOrder);
+        savedOrder = [...draftOrder];
+        options.onCancel();
+      } catch (error) {
+        console.error('Failed to save streak order', error);
+        alert('Failed to save streak order.');
+      } finally {
+        saveButton.disabled = false;
+      }
+    })();
+  });
+  actions.appendChild(saveButton);
+
+  renderList();
+  return fieldset;
+}
+
 function openStreakSettingsModal(options: {
   streakName: string;
   streakType: StreakType;
@@ -2174,7 +2354,11 @@ function openStreakSettingsModal(options: {
   overlay.focus();
 }
 
-function openGlobalSettingsModal(db: IDBDatabase): void {
+function openGlobalSettingsModal(options: {
+  db: IDBDatabase;
+  streakNames: string[];
+  onSaveOverviewOrder: (nextNames: string[]) => Promise<void>;
+}): void {
   const existing = document.getElementById('streak-settings-modal');
   if (existing) {
     existing.remove();
@@ -2206,7 +2390,14 @@ function openGlobalSettingsModal(db: IDBDatabase): void {
   closeButton.addEventListener('click', closeModal);
   actions.appendChild(closeButton);
 
-  body.appendChild(buildDataToolsSection(db, closeModal));
+  body.appendChild(
+    buildReorderSection({
+      streakNames: options.streakNames,
+      onSave: options.onSaveOverviewOrder,
+      onCancel: closeModal,
+    }),
+  );
+  body.appendChild(buildDataToolsSection(options.db, closeModal));
 
   dialog.appendChild(actions);
   overlay.appendChild(dialog);
@@ -2825,7 +3016,15 @@ export async function setup(): Promise<void> {
       },
       () => {
         if (viewMode === 'overview') {
-          openGlobalSettingsModal(db);
+          openGlobalSettingsModal({
+            db,
+            streakNames,
+            onSaveOverviewOrder: async (nextNames) => {
+              streakNames = [...nextNames];
+              await saveStreakNames(db, streakNames);
+              rerenderAll();
+            },
+          });
           return;
         }
         if (!selectedStreak) {

@@ -229,6 +229,60 @@ async function readStoredStreakSettings(): Promise<Map<string, Record<string, un
   });
 }
 
+async function readStoredStreakNames(): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('streak-tracker', 2);
+    request.onerror = () => reject(request.error ?? new Error('open failed'));
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction('streaks', 'readonly');
+      const store = tx.objectStore('streaks');
+      const getRequest = store.get('names');
+      getRequest.onerror = () => reject(getRequest.error ?? new Error('read failed'));
+      getRequest.onsuccess = () => {
+        const result = getRequest.result;
+        db.close();
+        resolve(Array.isArray(result) ? result : []);
+      };
+    };
+  });
+}
+
+async function seedStreakNames(names: string[]): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open('streak-tracker', 2);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('dayStates')) {
+        db.createObjectStore('dayStates');
+      }
+      if (!db.objectStoreNames.contains('streaks')) {
+        db.createObjectStore('streaks');
+      }
+    };
+    request.onerror = () => reject(request.error ?? new Error('open failed'));
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction(['streaks'], 'readwrite');
+      const streakStore = tx.objectStore('streaks');
+      streakStore.put(names, 'names');
+      streakStore.put(names.map((name) => [name, STREAK_TYPES.Color]), 'types');
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onabort = () => reject(tx.error ?? new Error('write aborted'));
+      tx.onerror = () => reject(tx.error ?? new Error('write failed'));
+    };
+  });
+}
+
+function getOverviewRowNames(): string[] {
+  return Array.from(document.querySelectorAll('.overview-row')).map(
+    (row) => (row as HTMLElement).dataset.streak ?? '',
+  );
+}
+
 beforeEach(async () => {
   document.body.innerHTML = '';
   localStorage.clear();
@@ -1554,6 +1608,108 @@ test('overview settings modal omits streak-specific options', async () => {
   expect(document.getElementById('streak-color-label-green')).toBeNull();
   expect(document.getElementById('streak-color-select-green')).toBeNull();
   expect(document.querySelector('input[name="count-zero-start"]')).toBeNull();
+});
+
+test('overview settings shows reorder list in current overview order', async () => {
+  await seedStreakNames(['My Streak', 'Work', 'Fitness']);
+  await setupInOverview();
+
+  const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+  settingsButton.click();
+  await flushAsyncOperations();
+
+  const items = Array.from(document.querySelectorAll('.streak-order__item')).map(
+    (item) => (item as HTMLElement).dataset.streak,
+  );
+  expect(items).toEqual(['My Streak', 'Work', 'Fitness']);
+});
+
+test('overview reorder save persists names and updates row order', async () => {
+  await seedStreakNames(['My Streak', 'Work', 'Fitness']);
+  await setupInOverview();
+
+  const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+  settingsButton.click();
+  await flushAsyncOperations();
+
+  const moveDown = document.querySelector(
+    '.streak-order__item[data-streak="My Streak"] .streak-order__move-down',
+  ) as HTMLButtonElement;
+  moveDown.click();
+  await flushAsyncOperations();
+
+  const saveButton = document.querySelector('.streak-order__save') as HTMLButtonElement;
+  saveButton.click();
+  await flushAsyncOperations();
+
+  expect(getOverviewRowNames()).toEqual(['Work', 'My Streak', 'Fitness']);
+  expect(await readStoredStreakNames()).toEqual(['Work', 'My Streak', 'Fitness']);
+
+  await setupInOverview();
+  expect(getOverviewRowNames()).toEqual(['Work', 'My Streak', 'Fitness']);
+});
+
+test('overview reorder cancel discards draft order changes', async () => {
+  await seedStreakNames(['My Streak', 'Work', 'Fitness']);
+  await setupInOverview();
+
+  const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+  settingsButton.click();
+  await flushAsyncOperations();
+
+  const moveDown = document.querySelector(
+    '.streak-order__item[data-streak="My Streak"] .streak-order__move-down',
+  ) as HTMLButtonElement;
+  moveDown.click();
+  await flushAsyncOperations();
+
+  const cancelButton = document.querySelector('.streak-order__cancel') as HTMLButtonElement;
+  cancelButton.click();
+  await flushAsyncOperations();
+
+  expect(getOverviewRowNames()).toEqual(['My Streak', 'Work', 'Fitness']);
+  expect(await readStoredStreakNames()).toEqual(['My Streak', 'Work', 'Fitness']);
+});
+
+test('overview reorder supports drag and drop before saving', async () => {
+  await seedStreakNames(['My Streak', 'Work', 'Fitness']);
+  await setupInOverview();
+
+  const settingsButton = document.querySelector('.streak-settings') as HTMLButtonElement;
+  settingsButton.click();
+  await flushAsyncOperations();
+
+  const dragItem = document.querySelector(
+    '.streak-order__item[data-streak="My Streak"]',
+  ) as HTMLElement;
+  const targetItem = document.querySelector(
+    '.streak-order__item[data-streak="Work"]',
+  ) as HTMLElement;
+
+  const dragStart = new Event('dragstart', { bubbles: true, cancelable: true });
+  Object.defineProperty(dragStart, 'dataTransfer', {
+    value: {
+      setData: () => {},
+      getData: () => 'My Streak',
+      effectAllowed: 'move',
+    },
+  });
+  dragItem.dispatchEvent(dragStart);
+
+  const dropEvent = new Event('drop', { bubbles: true, cancelable: true });
+  Object.defineProperty(dropEvent, 'dataTransfer', {
+    value: {
+      getData: () => 'My Streak',
+    },
+  });
+  targetItem.dispatchEvent(dropEvent);
+  await flushAsyncOperations();
+
+  const saveButton = document.querySelector('.streak-order__save') as HTMLButtonElement;
+  saveButton.click();
+  await flushAsyncOperations();
+
+  expect(getOverviewRowNames()).toEqual(['Work', 'My Streak', 'Fitness']);
 });
 
 test('overview mode hides per-streak actions', async () => {
