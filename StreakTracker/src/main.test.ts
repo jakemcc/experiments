@@ -305,6 +305,12 @@ test('streak controls CSS omits unused selectors', () => {
   expect(html).not.toContain('#streak-controls select');
 });
 
+test('mobile viewport supports full available page height', () => {
+  const html = readFileSync(resolve(__dirname, '../index.html'), 'utf8');
+  expect(html).toContain('width=device-width, initial-scale=1.0, viewport-fit=cover');
+  expect(html).toContain('min-height: 100dvh;');
+});
+
 test('cycleColorState advances through the color cycle', () => {
   let state: DayState = DAY_STATES.None;
   state = cycleColorState(state);
