@@ -45,6 +45,16 @@ async function waitForCondition(condition: () => boolean, maxAttempts = 20) {
   throw new Error('Condition not met within allotted attempts');
 }
 
+async function waitForAsyncCondition(condition: () => Promise<boolean>, maxAttempts = 20) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (await condition()) {
+      return;
+    }
+    await flushAsyncOperations();
+  }
+  throw new Error('Async condition not met within allotted attempts');
+}
+
 function mockDate(dateString: string): () => void {
   const RealDate = Date;
   const fixedTime = new RealDate(dateString).getTime();
@@ -1648,6 +1658,13 @@ test('overview reorder save persists names and updates row order', async () => {
   saveButton.click();
   await flushAsyncOperations();
 
+  await waitForCondition(
+    () => getOverviewRowNames().join('|') === 'Work|My Streak|Fitness',
+  );
+  await waitForAsyncCondition(async () => {
+    const names = await readStoredStreakNames();
+    return names.join('|') === 'Work|My Streak|Fitness';
+  });
   expect(getOverviewRowNames()).toEqual(['Work', 'My Streak', 'Fitness']);
   expect(await readStoredStreakNames()).toEqual(['Work', 'My Streak', 'Fitness']);
 
