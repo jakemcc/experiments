@@ -1746,6 +1746,13 @@ test('overview reorder supports drag and drop before saving', async () => {
   saveButton.click();
   await flushAsyncOperations();
 
+  await waitForCondition(
+    () => getOverviewRowNames().join('|') === 'Work|My Streak|Fitness',
+  );
+  await waitForAsyncCondition(async () => {
+    const names = await readStoredStreakNames();
+    return names.join('|') === 'Work|My Streak|Fitness';
+  });
   expect(getOverviewRowNames()).toEqual(['Work', 'My Streak', 'Fitness']);
 });
 
