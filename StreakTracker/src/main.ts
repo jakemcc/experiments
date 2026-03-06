@@ -587,8 +587,14 @@ function buildDateKeyFromDate(date: Date): string {
 type RollingDate = {
   dateKey: string;
   label: string;
+  weekday: string;
   day: number;
 };
+
+function getWeekdayAbbreviation(date: Date): string {
+  const weekdays = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa'];
+  return weekdays[date.getDay()];
+}
 
 function getRollingWeekDates(now: Date): RollingDate[] {
   const dates: RollingDate[] = [];
@@ -603,6 +609,7 @@ function getRollingWeekDates(now: Date): RollingDate[] {
         month: 'numeric',
         day: 'numeric',
       }),
+      weekday: getWeekdayAbbreviation(date),
       day: date.getDate(),
     });
   }
@@ -2500,7 +2507,7 @@ function renderOverview(
     const days = document.createElement('div');
     days.className = 'overview-days';
 
-    dates.forEach(({ dateKey, label, day }) => {
+    dates.forEach(({ dateKey, label, weekday, day }) => {
       const cell = document.createElement('button');
       cell.type = 'button';
       cell.className = 'overview-day';
@@ -2509,7 +2516,7 @@ function renderOverview(
 
       const dayLabel = document.createElement('span');
       dayLabel.className = 'overview-day__label';
-      dayLabel.textContent = String(day);
+      dayLabel.textContent = `${weekday} ${day}`;
       cell.appendChild(dayLabel);
 
       if (streakType === STREAK_TYPES.Color) {
@@ -2698,9 +2705,13 @@ function renderCalendars(
       cell.className = 'day';
       if (value !== null) {
         cell.dataset.day = String(value);
+        const weekdayLabel = getWeekdayAbbreviation(new Date(year, month - 1, value));
         const dateKey = `${year}-${month}-${value}`;
+        const dayLabel = document.createElement('span');
+        dayLabel.className = 'day-number';
+        dayLabel.textContent = `${weekdayLabel} ${value}`;
+        cell.appendChild(dayLabel);
         if (streakType === STREAK_TYPES.Color && colorSelections) {
-          cell.textContent = String(value);
           let state = monthState.get(value) ?? DAY_STATES.None;
           applyDayStateClass(cell, state, colorSelections);
           cell.addEventListener('click', async () => {
@@ -2726,9 +2737,6 @@ function renderCalendars(
           });
         } else {
           cell.classList.add('day--count');
-          const dayLabel = document.createElement('span');
-          dayLabel.className = 'day-number';
-          dayLabel.textContent = String(value);
           const countValue = document.createElement('div');
           countValue.className = 'day-count__value';
           let count = monthCounts.get(value) ?? 0;

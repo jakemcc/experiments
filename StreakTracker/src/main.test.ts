@@ -363,6 +363,18 @@ test('clicking a day saves and restores its state', async () => {
   expect(cell2.classList.contains('red')).toBe(true);
 });
 
+test('calendar day labels include weekday abbreviations', async () => {
+  const restoreDate = mockDate('2024-03-20T12:00:00Z');
+  try {
+    await setupWithStreak();
+    const dayOne = getDayCell('1');
+    const label = dayOne.querySelector('.day-number') as HTMLElement | null;
+    expect(label?.textContent).toBe('F 1');
+  } finally {
+    restoreDate();
+  }
+});
+
 test('third click sets day to blue and persists state', async () => {
   await setupWithStreak();
   const cell = getDayCell('1');
@@ -1533,6 +1545,8 @@ test('overview mode shows 7-day strips and updates color streak', async () => {
 
     const todayKey = '2024-3-20';
     const cell = getOverviewCell('My Streak', todayKey);
+    const dayLabel = cell.querySelector('.overview-day__label') as HTMLElement | null;
+    expect(dayLabel?.textContent).toBe('W 20');
     cell.click();
     await flushAsyncOperations();
     expect(cell.classList.contains('red')).toBe(true);
