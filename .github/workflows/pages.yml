@@ -56,10 +56,18 @@ jobs:
         run: |
           mkdir -p site/StreakTracker site/Counter site/Packing site/99-bottles
           cp Counter/* site/Counter
-          cp StreakTracker/index.html site/StreakTracker/
-          cp StreakTracker/manifest.webmanifest site/StreakTracker/
-          cp StreakTracker/service-worker.js site/StreakTracker/
-          cp -r StreakTracker/dist site/StreakTracker/
+          rsync -a \
+            --exclude node_modules \
+            --exclude src \
+            --exclude .gitignore \
+            --exclude Makefile \
+            --exclude README.md \
+            --exclude jest.config.js \
+            --exclude jest.setup.js \
+            --exclude package-lock.json \
+            --exclude package.json \
+            --exclude tsconfig.json \
+            StreakTracker/ site/StreakTracker/
           cp -r packing/src/packing/* site/Packing/
           cp 99-bottles/index.html 99-bottles/state.js site/99-bottles/
           cp index.html site/index.html
