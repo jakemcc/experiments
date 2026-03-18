@@ -6,15 +6,18 @@ help: ## Show this help.
 	 sort | \
 	 awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: test test-packing test-streaktracker build build-packing build-streaktracker prepare-site clean
+.PHONY: test test-packing test-streaktracker test-vpoints build build-packing build-streaktracker prepare-site clean
 
-test: test-packing test-streaktracker ## Run all tests across projects.
+test: test-packing test-streaktracker test-vpoints ## Run all tests across projects.
 
 test-packing:
 	$(MAKE) -C packing test
 
 test-streaktracker:
 	$(MAKE) -C StreakTracker test
+
+test-vpoints:
+	node --test VPoints/app.test.js
 
 build: clean build-packing build-streaktracker prepare-site ## Build all projects and assemble site/ artifacts (no tests).
 
@@ -25,8 +28,9 @@ build-streaktracker:
 	cd StreakTracker && npm run build
 
 prepare-site:
-	mkdir -p site/StreakTracker site/Counter site/99-bottles
+	mkdir -p site/StreakTracker site/Counter site/VPoints site/99-bottles
 	cp Counter/* site/Counter
+	cp VPoints/* site/VPoints
 	cp StreakTracker/index.html site/StreakTracker/
 	cp StreakTracker/manifest.webmanifest site/StreakTracker/
 	cp StreakTracker/service-worker.js site/StreakTracker/
@@ -58,6 +62,7 @@ watch: ## Watch sources and rerun `make test build` on changes (requires watchex
 		--watch StreakTracker \
 		--watch packing \
 		--watch Counter \
+		--watch VPoints \
 		--watch 99-bottles \
 		--watch index.html \
 		--watch Makefile \
