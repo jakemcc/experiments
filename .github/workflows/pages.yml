@@ -49,28 +49,9 @@ jobs:
         run: clojure -M:test
       - name: Build StreakTracker app
         working-directory: StreakTracker
-        run: |
-          npm ci
-          npm run build
-      - name: Prepare site
-        run: |
-          mkdir -p site/StreakTracker site/Counter site/Packing site/99-bottles
-          cp Counter/* site/Counter
-          rsync -a \
-            --exclude node_modules \
-            --exclude src \
-            --exclude .gitignore \
-            --exclude Makefile \
-            --exclude README.md \
-            --exclude jest.config.js \
-            --exclude jest.setup.js \
-            --exclude package-lock.json \
-            --exclude package.json \
-            --exclude tsconfig.json \
-            StreakTracker/ site/StreakTracker/
-          cp -r packing/src/packing/* site/Packing/
-          cp 99-bottles/index.html 99-bottles/state.js site/99-bottles/
-          cp index.html site/index.html
+        run: npm ci
+      - name: Run shared test and build flow
+        run: make test build
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
