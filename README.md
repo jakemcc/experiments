@@ -7,6 +7,7 @@ Each subdirectory has its own little experiment and some sort of probably tiny w
 
 - **Streak Tracker** – A PWA for recording daily streaks with offline support and installability.
 - **Counter** – A lightweight browser counter with increment and reset actions that logs completed counts in a history.
+- **V Points** – A single-page climbing volume tracker that totals V grades and attempts from a persistent action log.
 
 ## Experiment graveyard
 
