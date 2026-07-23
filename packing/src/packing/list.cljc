@@ -45,6 +45,7 @@
                   ::outdoors}
 
    ::sport-climbing #{(i :climbing-gear "rope")
+                      (i :climbing-gear "helmet")
                       (i :climbing-gear "quick draws")
                       (i :climbing-gear "cleaning gear")
                       (i :climbing-gear "rappelling gear")
@@ -78,6 +79,7 @@
    ::bathroom #{(i :bathroom-health "toothbrush")
                 (i :bathroom-health "toothpaste")
                 (i :bathroom-health "floss")
+                (i :bathroom-health "lip balm")
                 (i :bathroom-health "Nasal spray allergy med")
                 (i :bathroom-health "Benadryl")
                 (i :bathroom-health "Zyrtec")

@@ -60,3 +60,7 @@
 
 (deftest global-items-include-trim-nails
   (is (contains? pl/global-items (pl/a "trim nails"))))
+
+(deftest sport-climbing-includes-helmet
+  (is (contains? (pl/packing-list' pl/packing-lists :packing.list/sport-climbing)
+                (pl/i :climbing-gear "helmet"))))
