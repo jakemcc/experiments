@@ -9,6 +9,7 @@ import {
   decodeTrip,
   encodeTrip,
   suggestTransfers,
+  setupApp,
 } from './app.js';
 
 test('the trip state round-trips through a URL-safe hash payload', () => {
@@ -86,4 +87,44 @@ test('settlements use the fewest transfers when a greedy pairing would not', () 
     { from: 'Dev', to: 'Cora', amountCents: 500 },
     { from: 'Eli', to: 'Ada', amountCents: 800 },
   ]);
+});
+
+test('editing an expense input refreshes that expense calculation', () => {
+  class FakeInput {
+    constructor(dataset, value) {
+      this.dataset = dataset;
+      this.value = value;
+    }
+  }
+
+  const elements = Object.fromEntries([
+    'person-inputs', 'expense-list', 'expense-breakdown-0', 'balances', 'transfers', 'transfer-count',
+  ].map((id) => [id, { innerHTML: '', textContent: '' }]));
+  const listeners = new Map();
+  const root = {
+    addEventListener(type, listener) { listeners.set(type, listener); },
+    getElementById(id) { return elements[id]; },
+  };
+  const trip = {
+    people: ['Ada', 'Ben'],
+    expenses: [{ description: 'Dinner', amountCents: 10000, payer: 0, shares: [1, 1] }],
+  };
+  const originalWindow = globalThis.window;
+  const originalHtmlInputElement = globalThis.HTMLInputElement;
+  globalThis.HTMLInputElement = FakeInput;
+  globalThis.window = {
+    location: { hash: encodeTrip(trip), pathname: '/spliter/', search: '' },
+    history: { replaceState() {} },
+    addEventListener() {},
+  };
+
+  try {
+    setupApp({ root });
+    listeners.get('input')({ target: new FakeInput({ amount: '0' }, '120') });
+
+    assert.match(elements['expense-breakdown-0'].innerHTML, /Owes <b>\$60\.00<\/b>/);
+  } finally {
+    globalThis.window = originalWindow;
+    globalThis.HTMLInputElement = originalHtmlInputElement;
+  }
 });

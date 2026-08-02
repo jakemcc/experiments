@@ -184,6 +184,21 @@ function escapeAttribute(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;');
 }
 
+function renderExpenseBreakdown(trip, expense) {
+  const breakdown = calculateExpenseBreakdown(trip, expense).map((entry) => `
+    <li>
+      <strong>${escapeAttribute(entry.person)}</strong>
+      <span>Owes <b>${formatMoney(entry.owesCents)}</b></span>
+      <span class="${entry.paidCents ? 'expense-paid' : 'expense-not-paid'}">Paid <b>${formatMoney(entry.paidCents)}</b></span>
+    </li>
+  `).join('');
+
+  return `
+    <strong>For this expense</strong>
+    <ul>${breakdown}</ul>
+  `;
+}
+
 function renderExpense(expense, expenseIndex, trip) {
   const payerOptions = trip.people.map((person, personIndex) => `
     <option value="${personIndex}" ${expense.payer === personIndex ? 'selected' : ''}>${escapeAttribute(person)}</option>
@@ -194,14 +209,6 @@ function renderExpense(expense, expenseIndex, trip) {
       <input type="number" inputmode="decimal" min="0" step="0.25" value="${expense.shares[personIndex]}" data-share="${expenseIndex}:${personIndex}" aria-label="${escapeAttribute(person)} share of ${escapeAttribute(expense.description || 'expense')}" />
     </label>
   `).join('');
-  const breakdown = calculateExpenseBreakdown(trip, expense).map((entry) => `
-    <li>
-      <strong>${escapeAttribute(entry.person)}</strong>
-      <span>Owes <b>${formatMoney(entry.owesCents)}</b></span>
-      <span class="${entry.paidCents ? 'expense-paid' : 'expense-not-paid'}">Paid <b>${formatMoney(entry.paidCents)}</b></span>
-    </li>
-  `).join('');
-
   return `
     <article class="expense-card">
       <div class="expense-topline">
@@ -226,10 +233,7 @@ function renderExpense(expense, expenseIndex, trip) {
         </div>
         <div class="share-grid">${shares}</div>
       </div>
-      <div class="expense-breakdown">
-        <strong>For this expense</strong>
-        <ul>${breakdown}</ul>
-      </div>
+      <div class="expense-breakdown" id="expense-breakdown-${expenseIndex}">${renderExpenseBreakdown(trip, expense)}</div>
     </article>
   `;
 }
@@ -256,6 +260,10 @@ function renderResults(trip) {
 
 function renderResultPanels(trip, root) {
   const results = renderResults(trip);
+  trip.expenses.forEach((expense, index) => {
+    const breakdown = root.getElementById(`expense-breakdown-${index}`);
+    if (breakdown) breakdown.innerHTML = renderExpenseBreakdown(trip, expense);
+  });
   root.getElementById('balances').innerHTML = results.balanceRows;
   root.getElementById('transfers').innerHTML = results.transferRows;
   root.getElementById('transfer-count').textContent = results.transferCount === 1 ? '1 transfer' : `${results.transferCount} transfers`;
