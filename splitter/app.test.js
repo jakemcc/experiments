@@ -113,7 +113,7 @@ test('editing an expense input refreshes that expense calculation', () => {
   const originalHtmlInputElement = globalThis.HTMLInputElement;
   globalThis.HTMLInputElement = FakeInput;
   globalThis.window = {
-    location: { hash: encodeTrip(trip), pathname: '/spliter/', search: '' },
+    location: { hash: encodeTrip(trip), pathname: '/splitter/', search: '' },
     history: { replaceState() {} },
     addEventListener() {},
   };
@@ -149,7 +149,7 @@ test('adding an expense focuses its name input', () => {
   };
   const originalWindow = globalThis.window;
   globalThis.window = {
-    location: { hash: encodeTrip(trip), pathname: '/spliter/', search: '' },
+    location: { hash: encodeTrip(trip), pathname: '/splitter/', search: '' },
     history: { replaceState() {} },
     addEventListener() {},
   };
