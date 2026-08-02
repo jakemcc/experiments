@@ -6,9 +6,9 @@ help: ## Show this help.
 	 sort | \
 	 awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: test test-packing test-streaktracker test-vpoints test-workflows build build-packing build-streaktracker prepare-site clean
+.PHONY: test test-packing test-streaktracker test-vpoints test-spliter test-workflows build build-packing build-streaktracker prepare-site clean
 
-test: test-packing test-streaktracker test-vpoints test-workflows ## Run all tests across projects.
+test: test-packing test-streaktracker test-vpoints test-spliter test-workflows ## Run all tests across projects.
 
 test-packing:
 	$(MAKE) -C packing test
@@ -18,6 +18,9 @@ test-streaktracker:
 
 test-vpoints:
 	node --test VPoints/app.test.js
+
+test-spliter:
+	node --test spliter/app.test.js
 
 test-workflows:
 	node --test .github/workflows/pages.test.js
@@ -31,7 +34,7 @@ build-streaktracker:
 	cd StreakTracker && npm run build
 
 prepare-site:
-	mkdir -p site/StreakTracker site/Counter site/VPoints site/Packing site/99-bottles
+	mkdir -p site/StreakTracker site/Counter site/VPoints site/Packing site/99-bottles site/spliter
 	cp Counter/* site/Counter
 	cp VPoints/* site/VPoints
 	cp StreakTracker/index.html site/StreakTracker/
@@ -41,6 +44,7 @@ prepare-site:
 	cp -r StreakTracker/dist site/StreakTracker/
 	cp -r packing/src/packing/* site/Packing/
 	cp 99-bottles/index.html 99-bottles/state.js site/99-bottles/
+	cp spliter/index.html spliter/app.js site/spliter/
 	cp index.html site/index.html
 
 clean: ## Remove built site artifacts.
