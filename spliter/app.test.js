@@ -128,3 +128,38 @@ test('editing an expense input refreshes that expense calculation', () => {
     globalThis.HTMLInputElement = originalHtmlInputElement;
   }
 });
+
+test('adding an expense focuses its name input', () => {
+  const newExpenseName = {
+    focusCalls: 0,
+    focus() { this.focusCalls += 1; },
+  };
+  const elements = Object.fromEntries([
+    'person-inputs', 'expense-list', 'balances', 'transfers', 'transfer-count',
+  ].map((id) => [id, { innerHTML: '', textContent: '' }]));
+  elements['expense-description-1'] = newExpenseName;
+  const listeners = new Map();
+  const root = {
+    addEventListener(type, listener) { listeners.set(type, listener); },
+    getElementById(id) { return elements[id]; },
+  };
+  const trip = {
+    people: ['Ada', 'Ben'],
+    expenses: [{ description: 'Dinner', amountCents: 10000, payer: 0, shares: [1, 1] }],
+  };
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    location: { hash: encodeTrip(trip), pathname: '/spliter/', search: '' },
+    history: { replaceState() {} },
+    addEventListener() {},
+  };
+
+  try {
+    setupApp({ root });
+    listeners.get('click')({ target: { closest: () => ({ id: 'add-expense', dataset: {} }) } });
+
+    assert.equal(newExpenseName.focusCalls, 1);
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});

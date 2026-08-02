@@ -214,7 +214,7 @@ function renderExpense(expense, expenseIndex, trip) {
       <div class="expense-topline">
         <label class="field grow">
           <span>What was it?</span>
-          <input value="${escapeAttribute(expense.description)}" data-description="${expenseIndex}" placeholder="e.g. Dinner" maxlength="60" />
+          <input id="expense-description-${expenseIndex}" value="${escapeAttribute(expense.description)}" data-description="${expenseIndex}" placeholder="e.g. Dinner" maxlength="60" />
         </label>
         <label class="field amount-field">
           <span>Cost</span>
@@ -327,6 +327,7 @@ function bindEvents(root, state) {
   root.addEventListener('click', (event) => {
     const button = event.target.closest('button');
     if (!button) return;
+    let focusTargetId;
     if (button.id === 'add-person') {
       state.trip.people.push(`Person ${state.trip.people.length + 1}`);
       state.trip.expenses.forEach((expense) => expense.shares.push(1));
@@ -341,6 +342,7 @@ function bindEvents(root, state) {
     } else if (button.id === 'add-expense') {
       const previousExpense = state.trip.expenses.at(-1);
       state.trip.expenses.push(createExpense(state.trip.people.length, previousExpense?.payer));
+      focusTargetId = `expense-description-${state.trip.expenses.length - 1}`;
     } else if (button.dataset.removeExpense !== undefined) {
       state.trip.expenses.splice(Number(button.dataset.removeExpense), 1);
     } else if (button.id === 'reset-trip') {
@@ -350,6 +352,7 @@ function bindEvents(root, state) {
     }
     updateHash(state.trip);
     render(state.trip, root);
+    if (focusTargetId) root.getElementById(focusTargetId)?.focus();
   });
 }
 
