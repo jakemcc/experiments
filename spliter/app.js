@@ -229,7 +229,6 @@ function renderExpense(expense, expenseIndex, trip) {
       <div class="shares">
         <div>
           <strong>Split weights</strong>
-          <p>Use any ratio: 1 / 4, 2 / 4, 1 / 4 — or 1 / 1 / 1.</p>
         </div>
         <div class="share-grid">${shares}</div>
       </div>
