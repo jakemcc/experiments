@@ -12,6 +12,13 @@ import {
   setupApp,
 } from './app.js';
 
+function encodeLegacyTrip(trip) {
+  const bytes = new TextEncoder().encode(JSON.stringify(trip));
+  let binary = '';
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return `#trip=${btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')}`;
+}
+
 test('the trip state round-trips through a URL-safe hash payload', () => {
   const trip = {
     people: ['Ada', 'Béla', 'Chloë'],
@@ -19,6 +26,33 @@ test('the trip state round-trips through a URL-safe hash payload', () => {
   };
 
   assert.deepEqual(decodeTrip(encodeTrip(trip)), trip);
+});
+
+test('new links compress repeated trip data', () => {
+  const trip = {
+    people: ['Ada', 'Ben', 'Cora'],
+    expenses: Array.from({ length: 12 }, () => ({
+      description: 'Shared dinner at the neighbourhood restaurant',
+      amountCents: 12345,
+      payer: 0,
+      shares: [1, 1, 1],
+    })),
+  };
+
+  const compressedHash = encodeTrip(trip);
+
+  assert.match(compressedHash, /^#tripz=/);
+  assert.ok(compressedHash.length < encodeLegacyTrip(trip).length);
+  assert.deepEqual(decodeTrip(compressedHash), trip);
+});
+
+test('uncompressed links created before compression remain compatible', () => {
+  const trip = {
+    people: ['Ada', 'Ben'],
+    expenses: [{ description: 'Dinner', amountCents: 12345, payer: 1, shares: [1, 1] }],
+  };
+
+  assert.deepEqual(decodeTrip(encodeLegacyTrip(trip)), trip);
 });
 
 test('a missing or malformed payload falls back to the starter trip', () => {

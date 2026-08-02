@@ -1,4 +1,8 @@
 const HASH_PREFIX = '#trip=';
+const COMPRESSED_HASH_PREFIX = '#tripz=';
+const LZW_CLEAR_CODE = 256;
+const LZW_FIRST_CODE = LZW_CLEAR_CODE + 1;
+const LZW_MAX_CODE = 0xffff;
 
 export function createDefaultTrip() {
   return {
@@ -52,31 +56,129 @@ function validTrip(value) {
     ));
 }
 
-function toBase64Url(text) {
-  const bytes = new TextEncoder().encode(text);
+function toBase64UrlBytes(bytes) {
   let binary = '';
   bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
   return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 }
 
-function fromBase64Url(value) {
+function fromBase64UrlBytes(value) {
   const base64 = value.replaceAll('-', '+').replaceAll('_', '/').padEnd(Math.ceil(value.length / 4) * 4, '=');
   const binary = atob(base64);
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+function compressLzw(bytes) {
+  if (bytes.length === 0) return bytes;
+
+  const codes = [];
+  let dictionary = new Map();
+  let nextCode = LZW_FIRST_CODE;
+  let currentCode = bytes[0];
+
+  for (let index = 1; index < bytes.length; index += 1) {
+    const byte = bytes[index];
+    const dictionaryKey = (currentCode * 256) + byte;
+    const combinedCode = dictionary.get(dictionaryKey);
+    if (combinedCode !== undefined) {
+      currentCode = combinedCode;
+      continue;
+    }
+
+    codes.push(currentCode);
+    if (nextCode <= LZW_MAX_CODE) {
+      dictionary.set(dictionaryKey, nextCode);
+      nextCode += 1;
+    } else {
+      codes.push(LZW_CLEAR_CODE);
+      dictionary = new Map();
+      nextCode = LZW_FIRST_CODE;
+    }
+    currentCode = byte;
+  }
+  codes.push(currentCode);
+
+  const compressed = new Uint8Array(codes.length * 2);
+  codes.forEach((code, index) => {
+    compressed[index * 2] = code >> 8;
+    compressed[(index * 2) + 1] = code & 0xff;
+  });
+  return compressed;
+}
+
+function appendByte(bytes, byte) {
+  const combined = new Uint8Array(bytes.length + 1);
+  combined.set(bytes);
+  combined[bytes.length] = byte;
+  return combined;
+}
+
+function createLzwDictionary() {
+  return Array.from({ length: LZW_CLEAR_CODE }, (_value, code) => Uint8Array.of(code));
+}
+
+function decompressLzw(bytes) {
+  if (bytes.length === 0) return bytes;
+  if (bytes.length % 2 !== 0) throw new Error('Invalid compressed trip data');
+
+  let dictionary = createLzwDictionary();
+  let nextCode = LZW_FIRST_CODE;
+  let previousEntry;
+  const chunks = [];
+  let length = 0;
+
+  for (let index = 0; index < bytes.length; index += 2) {
+    const code = (bytes[index] << 8) | bytes[index + 1];
+    if (code === LZW_CLEAR_CODE) {
+      dictionary = createLzwDictionary();
+      nextCode = LZW_FIRST_CODE;
+      previousEntry = undefined;
+      continue;
+    }
+
+    let entry = dictionary[code];
+    if (!entry) {
+      if (code !== nextCode || !previousEntry) throw new Error('Invalid compressed trip data');
+      entry = appendByte(previousEntry, previousEntry[0]);
+    }
+
+    chunks.push(entry);
+    length += entry.length;
+    if (previousEntry) {
+      if (nextCode > LZW_MAX_CODE) throw new Error('Invalid compressed trip data');
+      dictionary[nextCode] = appendByte(previousEntry, entry[0]);
+      nextCode += 1;
+    }
+    previousEntry = entry;
+  }
+
+  const decompressed = new Uint8Array(length);
+  let offset = 0;
+  chunks.forEach((chunk) => {
+    decompressed.set(chunk, offset);
+    offset += chunk.length;
+  });
+  return decompressed;
 }
 
 export function encodeTrip(trip) {
-  return `${HASH_PREFIX}${toBase64Url(JSON.stringify(trip))}`;
+  const bytes = new TextEncoder().encode(JSON.stringify(trip));
+  const compressed = compressLzw(bytes);
+  const useCompressed = compressed.length < bytes.length;
+  return `${useCompressed ? COMPRESSED_HASH_PREFIX : HASH_PREFIX}${toBase64UrlBytes(useCompressed ? compressed : bytes)}`;
 }
 
 export function decodeTrip(hash) {
-  if (typeof hash !== 'string' || !hash.startsWith(HASH_PREFIX)) {
+  const isCompressed = typeof hash === 'string' && hash.startsWith(COMPRESSED_HASH_PREFIX);
+  const isLegacy = typeof hash === 'string' && hash.startsWith(HASH_PREFIX);
+  if (!isCompressed && !isLegacy) {
     return cloneDefaultTrip();
   }
 
   try {
-    const trip = JSON.parse(fromBase64Url(hash.slice(HASH_PREFIX.length)));
+    const payload = hash.slice(isCompressed ? COMPRESSED_HASH_PREFIX.length : HASH_PREFIX.length);
+    const bytes = fromBase64UrlBytes(payload);
+    const trip = JSON.parse(new TextDecoder().decode(isCompressed ? decompressLzw(bytes) : bytes));
     return validTrip(trip) ? trip : cloneDefaultTrip();
   } catch {
     return cloneDefaultTrip();
