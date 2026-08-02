@@ -23,6 +23,8 @@
     .eyebrow { margin: 0 0 .65rem; color: #0d7165; font-size: .78rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
     h1 { margin: 0; max-width: 10ch; color: #143d38; font-family: Georgia, "Times New Roman", serif; font-size: clamp(3.3rem, 8vw, 5.8rem); font-weight: 500; letter-spacing: -.065em; line-height: .88; }
     .intro { max-width: 31rem; margin: 1.2rem 0 0; color: #52655e; font-size: 1.05rem; line-height: 1.55; }
+    .sharing-note { max-width: 42rem; margin: 1.25rem 0 0; border-left: .22rem solid #ec8e38; padding: .15rem 0 .15rem .85rem; color: #52655e; font-size: .95rem; line-height: 1.5; }
+    .sharing-note strong { color: #24463f; }
     .reset { flex: none; margin-top: .4rem; border: 1px solid #c7cec0; border-radius: 999px; padding: .6rem .95rem; color: #35514a; background: transparent; font-size: .9rem; font-weight: 700; }
     .reset:hover { background: #e6eadf; }
 
@@ -98,6 +100,7 @@
         <p class="eyebrow">Trip maths, without accounts</p>
         <h1>Split it simply.</h1>
         <p class="intro">Add what people paid, choose each person’s share, and settle the whole trip with the fewest useful transfers.</p>
+        <p class="sharing-note"><strong>How to collaborate:</strong> This URL contains the full trip. Add your expenses, then copy and share the updated URL with the group. The next person should start from the latest shared link, add their expenses, and share their new URL in turn. Repeat as needed.</p>
       </div>
       <button class="reset" type="button" id="reset-trip">Reset example</button>
     </header>
@@ -105,7 +108,7 @@
     <div class="layout">
       <section class="trip-card" aria-label="Trip expenses">
         <section class="section" aria-labelledby="people-heading">
-          <div class="section-head"><div><h2 id="people-heading">Who went?</h2><p class="section-note">Their names are part of the shareable link.</p></div></div>
+          <div class="section-head"><div><h2 id="people-heading">Who went?</h2></div></div>
           <div class="person-list" id="person-inputs"></div>
           <button class="add-link" type="button" id="add-person">+ Add person</button>
         </section>
