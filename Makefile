@@ -71,6 +71,7 @@ watch: ## Watch sources and rerun `make test build` on changes (requires watchex
 		--watch packing \
 		--watch Counter \
 		--watch VPoints \
+    --watch splitter \
 		--watch 99-bottles \
 		--watch index.html \
 		--watch Makefile \
