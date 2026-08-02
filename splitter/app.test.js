@@ -163,3 +163,38 @@ test('adding an expense focuses its name input', () => {
     globalThis.window = originalWindow;
   }
 });
+
+test('Clear removes trip data and leaves a fresh split ready to fill in', () => {
+  const elements = Object.fromEntries([
+    'person-inputs', 'expense-list', 'balances', 'transfers', 'transfer-count',
+  ].map((id) => [id, { innerHTML: '', textContent: '' }]));
+  const listeners = new Map();
+  const root = {
+    addEventListener(type, listener) { listeners.set(type, listener); },
+    getElementById(id) { return elements[id]; },
+  };
+  const trip = {
+    people: ['Ada', 'Ben'],
+    expenses: [{ description: 'Dinner', amountCents: 10000, payer: 0, shares: [1, 1] }],
+  };
+  const originalWindow = globalThis.window;
+  let updatedUrl;
+  globalThis.window = {
+    location: { hash: encodeTrip(trip), pathname: '/splitter/', search: '' },
+    history: { replaceState(_state, _title, url) { updatedUrl = url; } },
+    addEventListener() {},
+  };
+
+  try {
+    setupApp({ root });
+    listeners.get('click')({ target: { closest: () => ({ id: 'clear-trip', dataset: {} }) } });
+
+    assert.deepEqual(decodeTrip(updatedUrl.slice(updatedUrl.indexOf('#'))), {
+      people: ['Person 1', 'Person 2'],
+      expenses: [],
+    });
+    assert.match(elements['expense-list'].innerHTML, /No expenses yet/);
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});

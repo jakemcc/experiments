@@ -10,6 +10,13 @@ export function createDefaultTrip() {
   };
 }
 
+function createEmptyTrip() {
+  return {
+    people: ['Person 1', 'Person 2'],
+    expenses: [],
+  };
+}
+
 export function createExpense(personCount, payer = 0) {
   return {
     description: '',
@@ -345,8 +352,8 @@ function bindEvents(root, state) {
       focusTargetId = `expense-description-${state.trip.expenses.length - 1}`;
     } else if (button.dataset.removeExpense !== undefined) {
       state.trip.expenses.splice(Number(button.dataset.removeExpense), 1);
-    } else if (button.id === 'reset-trip') {
-      state.trip = cloneDefaultTrip();
+    } else if (button.id === 'clear-trip') {
+      state.trip = createEmptyTrip();
     } else {
       return;
     }
