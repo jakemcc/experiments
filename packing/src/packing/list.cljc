@@ -114,6 +114,7 @@
                    (i :accessories-tech "coffee mug")
                    (i :travel-admin "global entry card")
                    (i :travel-admin "passport")
+                   (i :field-of-vision "Tickets")
                    (a "Download podcasts")
                    (a "Download videos")
                    (a "Download books")
@@ -123,6 +124,7 @@
   [:clothing
    :bathroom-health
    :accessories-tech
+   :field-of-vision
    :outdoors-camping
    :climbing-gear
    :travel-admin
@@ -132,6 +134,7 @@
   {:clothing "Clothing"
    :bathroom-health "Bathroom & health"
    :accessories-tech "Accessories & tech"
+   :field-of-vision "Field of Vision"
    :outdoors-camping "Outdoors & camping"
    :climbing-gear "Climbing gear"
    :travel-admin "Travel & admin"
