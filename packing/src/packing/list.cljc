@@ -38,6 +38,20 @@
                  (i :accessories-tech "monitor glasses")
                  (i :travel-admin "office badge")}
 
+   ::field-of-vision #{(i "Tickets")
+                       (i "Headlamp")
+                       (a "Local taxi numbers saved as a backup")
+                       (i "warm layer")
+                       (i "rain layer")
+                       (i "cash")
+                       (i "refillable bottle")
+                       (i "huel bars")
+                       (i "fanny pack / pack for festival")
+                       (i "portable battery + cable")
+                       (i "spf lip balm")
+                       (i "concert ear plugs")
+                       (i "backup ear plugs")}
+
    ::bouldering #{(i :climbing-gear "crash pad")
                   (i :bathroom-health "skin care")
                   (i :bathroom-health "nail file")
@@ -114,19 +128,6 @@
                    (i :accessories-tech "coffee mug")
                    (i :travel-admin "global entry card")
                    (i :travel-admin "passport")
-                   (i :field-of-vision "Tickets")
-                   (i :field-of-vision "Headlamp")
-                   (a "Local taxi numbers saved as a backup")
-                   (i :field-of-vision "warm layer")
-                   (i :field-of-vision "rain layer")
-                   (i :field-of-vision "cash")
-                   (i :field-of-vision "refillable bottle")
-                   (i :field-of-vision "huel bars")
-                   (i :field-of-vision "fanny pack / pack for festival")
-                   (i :field-of-vision "portable battery + cable")
-                   (i :field-of-vision "spf lip balm")
-                   (i :field-of-vision "concert ear plugs")
-                   (i :field-of-vision "backup ear plugs")
                    (a "Download podcasts")
                    (a "Download videos")
                    (a "Download books")
@@ -136,7 +137,6 @@
   [:clothing
    :bathroom-health
    :accessories-tech
-   :field-of-vision
    :outdoors-camping
    :climbing-gear
    :travel-admin
@@ -146,7 +146,6 @@
   {:clothing "Clothing"
    :bathroom-health "Bathroom & health"
    :accessories-tech "Accessories & tech"
-   :field-of-vision "Field of Vision"
    :outdoors-camping "Outdoors & camping"
    :climbing-gear "Climbing gear"
    :travel-admin "Travel & admin"
