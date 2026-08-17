@@ -50,7 +50,10 @@
                        (i "portable battery + cable")
                        (i "spf lip balm")
                        (i "concert ear plugs")
-                       (i "backup ear plugs")}
+                       (i "backup ear plugs")
+                       (i "hammock")
+                       (i "camping chairs")
+                       (i "picnic blanket for shows")}
 
    ::bouldering #{(i :climbing-gear "crash pad")
                   (i :bathroom-health "skin care")
