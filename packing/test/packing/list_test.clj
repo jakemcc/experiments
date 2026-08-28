@@ -61,6 +61,12 @@
 (deftest global-items-include-trim-nails
   (is (contains? pl/global-items (pl/a "trim nails"))))
 
+(deftest state-base64-round-trips-unicode
+  (let [state {:trip-types #{:packing.list/jhourney}
+               :checked-items #{[:item "[Optional] headphones — guided meditation 🎧"]}}
+        encoded (pl/string->base64 (pr-str state))]
+    (is (= state (read-string (pl/base64->string encoded))))))
+
 (deftest sport-climbing-includes-helmet
   (is (contains? (pl/packing-list' pl/packing-lists :packing.list/sport-climbing)
                 (pl/i :climbing-gear "helmet"))))

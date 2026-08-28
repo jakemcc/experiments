@@ -2,7 +2,9 @@
   (:require [clojure.set :as set]
             [clojure.string :as string]
             #?(:cljs [reagent.core :as r])
-            #?(:cljs [reagent.dom :as rdom])))
+            #?(:cljs [reagent.dom :as rdom]))
+  #?(:clj (:import [java.nio.charset StandardCharsets]
+                   [java.util Base64])))
 
 (defn i
   ([s] (i :uncategorized s))
@@ -223,6 +225,27 @@
 
 #?(:cljs (defonce state (r/atom (new-state))))
 
+(defn string->base64
+  [s]
+  #?(:clj (.encodeToString (Base64/getEncoder)
+                           (.getBytes s StandardCharsets/UTF_8))
+     :cljs (let [bytes (.encode (js/TextEncoder.) s)
+                 binary (reduce (fn [result byte]
+                                  (str result (js/String.fromCharCode byte)))
+                                ""
+                                bytes)]
+             (js/btoa binary))))
+
+(defn base64->string
+  [s]
+  #?(:clj (String. (.decode (Base64/getDecoder) s)
+                   StandardCharsets/UTF_8)
+     :cljs (let [binary (js/atob s)
+                 bytes (js/Uint8Array. (count binary))]
+             (dotimes [i (count binary)]
+               (aset bytes i (.charCodeAt binary i)))
+             (.decode (js/TextDecoder.) bytes))))
+
 #?(:cljs (defn load-from-hash
            []
            (let [hash (.-hash js/location)
@@ -230,7 +253,7 @@
              (println hash)
              (try (if (string/blank? hash)
                     (new-state)
-                    (-> (js/atob hash)
+                    (-> (base64->string hash)
                         (read-string)
                         (update :trip-types set)
                         (update :checked-items set)))
@@ -241,7 +264,7 @@
            ;; Encode state as base64 to keep the hash short(ish) and less
            ;; readable.
            (set! (.-hash js/location)
-                 (js/encodeURIComponent (js/btoa (pr-str m))))))
+                 (js/encodeURIComponent (string->base64 (pr-str m))))))
 
 #?(:cljs (add-watch state
                     :state-changed
