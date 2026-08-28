@@ -1237,38 +1237,43 @@ test('count streak stats include zeros from first recorded day', async () => {
     countButton.click();
     await flushAsyncOperations();
 
-    const dayTwo = getDayCell('2');
-    const dayFour = getDayCell('4');
-    const dayTwoIncrement = dayTwo.querySelector(
-      '.day-count__control--plus',
-    ) as HTMLButtonElement;
-    const dayFourIncrement = dayFour.querySelector(
-      '.day-count__control--plus',
-    ) as HTMLButtonElement;
-
-    dayTwoIncrement.click();
-    await flushAsyncOperations();
-    dayTwoIncrement.click();
-    await flushAsyncOperations();
+    for (let i = 0; i < 2; i += 1) {
+      const dayTwoIncrement = getDayCell('2').querySelector(
+        '.day-count__control--plus',
+      ) as HTMLButtonElement;
+      dayTwoIncrement.click();
+      await flushAsyncOperations();
+    }
 
     for (let i = 0; i < 4; i += 1) {
+      const dayFourIncrement = getDayCell('4').querySelector(
+        '.day-count__control--plus',
+      ) as HTMLButtonElement;
       dayFourIncrement.click();
       await flushAsyncOperations();
     }
 
-    const stats = Array.from(document.querySelectorAll('.stats')).find(
-      (element) => !(element as HTMLElement).classList.contains('stats--overall')
-    ) as HTMLParagraphElement;
-    const overallStats = document.querySelector('.stats--overall') as HTMLParagraphElement;
     const expectedStats = 'Total: 6 Median: 1 Mean: 1.50';
     const expectedOverall = 'Median: 1 Mean: 1.50';
 
-    await waitForCondition(
-      () => stats.textContent === expectedStats && overallStats.textContent === expectedOverall,
-      60,
-    );
-    expect(stats.textContent).toBe(expectedStats);
-    expect(overallStats.textContent).toBe(expectedOverall);
+    const getStatsText = () => {
+      const stats = Array.from(document.querySelectorAll('.stats')).find(
+        (element) => !(element as HTMLElement).classList.contains('stats--overall')
+      ) as HTMLParagraphElement | undefined;
+      const overallStats = document.querySelector('.stats--overall') as HTMLParagraphElement | null;
+      return {
+        statsText: stats?.textContent ?? '',
+        overallText: overallStats?.textContent ?? '',
+      };
+    };
+
+    await waitForCondition(() => {
+      const { statsText, overallText } = getStatsText();
+      return statsText === expectedStats && overallText === expectedOverall;
+    }, 60);
+    const { statsText, overallText } = getStatsText();
+    expect(statsText).toBe(expectedStats);
+    expect(overallText).toBe(expectedOverall);
   } finally {
     promptSpy.mockRestore();
     restoreDate();
