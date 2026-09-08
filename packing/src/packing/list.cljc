@@ -115,6 +115,9 @@
    ::camping #{(i :outdoors-camping "tent")
                (i :outdoors-camping "trash bag(s)")
                (i :outdoors-camping "tablecloth")
+               (i :outdoors-camping "Kleenex")
+               (i :outdoors-camping "paper towel")
+               (i :outdoors-camping "Playing cards")
                ::outdoors}
 
    ::climbing #{::outdoors
