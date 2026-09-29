@@ -34,7 +34,7 @@ build-streaktracker:
 	cd StreakTracker && npm run build
 
 prepare-site:
-	mkdir -p site/StreakTracker site/Counter site/VPoints site/Packing site/99-bottles site/splitter
+	mkdir -p site/StreakTracker site/Counter site/VPoints site/Packing site/99-bottles site/splitter site/meditation
 	cp Counter/* site/Counter
 	cp VPoints/* site/VPoints
 	cp StreakTracker/index.html site/StreakTracker/
@@ -45,6 +45,7 @@ prepare-site:
 	cp -r packing/src/packing/* site/Packing/
 	cp 99-bottles/index.html 99-bottles/state.js site/99-bottles/
 	cp splitter/index.html splitter/app.js site/splitter/
+	cp meditation/index.html meditation/rob-burbea-practising-the-jhanas.xml site/meditation/
 	cp index.html site/index.html
 
 clean: ## Remove built site artifacts.
@@ -72,6 +73,7 @@ watch: ## Watch sources and rerun `make test build` on changes (requires watchex
 		--watch Counter \
 		--watch VPoints \
     --watch splitter \
+		--watch meditation \
 		--watch 99-bottles \
 		--watch index.html \
 		--watch Makefile \
