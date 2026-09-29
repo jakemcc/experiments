@@ -61,6 +61,7 @@
                 (i :clothing "workout clothes (if joining yoga/exercise sessions)")
                 (i :clothing "swimsuit (private lakefront)")
                 (i :clothing "comfortable walking or hiking shoes")
+                (i :clothing "shoes that are easy to take on and off")
                 (i :clothing "light jacket or sweater for cool evenings")
                 (i :clothing "sun hat")
                 (i :accessories-tech "small bag or day pack for daily items")
