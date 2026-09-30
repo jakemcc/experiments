@@ -45,7 +45,7 @@ prepare-site:
 	cp -r packing/src/packing/* site/Packing/
 	cp 99-bottles/index.html 99-bottles/state.js site/99-bottles/
 	cp splitter/index.html splitter/app.js site/splitter/
-	cp meditation/index.html meditation/rob-burbea-practising-the-jhanas.xml site/meditation/
+	cp meditation/index.html meditation/rob-burbea-practising-the-jhanas.xml meditation/rob-burbea-practising-the-jhanas-cover.jpg site/meditation/
 	cp index.html site/index.html
 
 clean: ## Remove built site artifacts.
