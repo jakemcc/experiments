@@ -1,0 +1,51 @@
+:root {
+  color-scheme: light;
+  background: #faf8f2;
+  color: #242c28;
+  font-family: system-ui, sans-serif;
+  line-height: 1.65;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 42rem;
+  margin-inline: auto;
+  padding: clamp(1.5rem, 6vw, 4rem);
+}
+
+h1, h2 {
+  color: #204638;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: clamp(2.25rem, 7vw, 3.5rem);
+  margin-block: 0 1rem;
+}
+
+h2 {
+  font-size: 1.35rem;
+  margin-block: 2rem 0.5rem;
+}
+
+p {
+  margin-block: 0 1rem;
+}
+
+a {
+  color: #17604a;
+  text-underline-offset: 0.15em;
+}
+
+nav {
+  margin-bottom: 1rem;
+}
+
+footer {
+  margin-top: 2rem;
+  border-top: 1px solid #bdc9bf;
+  padding-top: 1rem;
+}
