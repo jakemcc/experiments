@@ -34,7 +34,7 @@ build-streaktracker:
 	cd StreakTracker && npm run build
 
 prepare-site:
-	mkdir -p site/StreakTracker site/Counter site/VPoints site/Packing site/99-bottles site/splitter site/meditation site/moms-daily-helper/privacy
+	mkdir -p site/StreakTracker site/Counter site/VPoints site/Packing site/99-bottles site/splitter site/meditation site/moms-daily-helper/privacy site/moms-daily-helper/terms
 	cp Counter/* site/Counter
 	cp VPoints/* site/VPoints
 	cp StreakTracker/index.html site/StreakTracker/
@@ -48,6 +48,7 @@ prepare-site:
 	cp meditation/index.html meditation/rob-burbea-practising-the-jhanas-podcast.xml meditation/rob-burbea-practising-the-jhanas-cover.jpg site/meditation/
 	cp moms-daily-helper/index.html moms-daily-helper/style.css site/moms-daily-helper/
 	cp moms-daily-helper/privacy/index.html site/moms-daily-helper/privacy/
+	cp moms-daily-helper/terms/index.html site/moms-daily-helper/terms/
 	cp index.html site/index.html
 
 clean: ## Remove built site artifacts.
